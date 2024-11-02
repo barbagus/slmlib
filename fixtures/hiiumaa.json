@@ -1,0 +1,35 @@
+{
+    "targetLineDistance": 24.70,
+    "scores": [
+        {
+            "ignore": null,
+            "maxDeviation": 32.3,
+            "medal": "GOLD",
+            "levels": {
+                "Pro": 0.0,
+                "Amateur": 83.59,
+                "Newbie": 97.16
+            }
+        },
+        {
+            "ignore": 1,
+            "maxDeviation": 26.2,
+            "medal": "GOLD",
+            "levels": {
+                "Pro": 0.00,
+                "Amateur": 84.62,
+                "Newbie": 97.41
+            }
+        },
+        {
+            "ignore": 2,
+            "maxDeviation": 24.6,
+            "medal": "PLATINUM",
+            "levels": {
+                "Pro": 0.00,
+                "Amateur": 85.15,
+                "Newbie": 97.53
+            }
+        }
+    ]
+}
