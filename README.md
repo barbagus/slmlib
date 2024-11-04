@@ -24,8 +24,9 @@ media, etc.). But we would welcome the oportunity.
 
 ## Implementation
 The first efforts are to replicate the results of [scoremyline](https://scoremyline.com/). The bulk
-of the sample data have been retrieved from the website itself, but also, shout out to the person
-behind [Straight Line Wiki](https://straightline.wiki/) for providing us with additional traces.
+of the sample data have been retrieved from the website itself, but also, shout out to
+[the person](https://github.com/SimonJoelWarkentin) behind
+[Straight Line Wiki](https://straightline.wiki/) for providing us with additional traces.
 
 ### Distances and deviations
 Measuring distances on earth is a [tricky business](https://en.wikipedia.org/wiki/Geographical_distance)
