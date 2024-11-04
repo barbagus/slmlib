@@ -39966,5 +39966,5 @@
     },
     "Init_Drop": 0,
     "Init_ScoreLevel": 1,
-    "Name": "Tomiti_Straight-Line-through-Muhu"
+    "Name": "Muhu island"
 }
