@@ -15,3 +15,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "compare_scores"
 path = "src/compare_scores.rs"
+
+[[bin]]
+name = "sml_2_csv"
+path = "src/sml_2_csv.rs"
