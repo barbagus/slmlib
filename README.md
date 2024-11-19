@@ -85,5 +85,47 @@ It is unclear to us what could explain the differences. More details from Mr. Bu
 help. Or maybe there is just a bug... somewhere :-)
 
 ## How to use it ?
-For now, this is pretty much just a library with no user interface. A command line tool as well as
-a in-browser interface should be the next steps.
+
+### The command line analyzer
+The tool takes an input file (CSV or GPX) and optionally the start and end positions and displays
+the different statistics about about the track.
+
+```
+$ ./target/debug/slm.exe --help
+Usage: slm[.exe] [OPTIONS] FILE
+
+Arguments:
+  FILE  Input file.
+
+Options:
+  -s, --start POINT    Route start point.
+  -e, --end POINT      Route end point.
+  -f, --format FORMAT  Input file format (default: input file extension).
+  -h, --help           Show this message.
+
+Values:
+  POINT   Comma separated coordinates (latitude, longitude) as decimal degrees; north and east as
+          positive values, south and west as negative values. Ex: '52.606,-1.91787'
+  FORMAT  csv: one POINT per line (optional header).
+          gpx: first track.
+```
+
+```
+$ ./target/debug/slm.exe fixtures/archie-iom.csv
+Route length:             15.0 km
+Max. deviation:           21.7 m
+Medal rank:               PLATINUM
+Burdell score (PRO):      96.0 %
+Burdell score (AMATEUR):  99.5 %
+Burdell score (NEWBIE):   99.9 %
+```
+
+```
+$ ./target/debug/slm.exe fixtures/schaffhausen.gpx
+Route length:             12.7 km
+Max. deviation:           56.5 m
+Medal rank:               SILVER
+Burdell score (PRO):      0.0 %
+Burdell score (AMATEUR):  50.7 %
+Burdell score (NEWBIE):   92.4 %
+```

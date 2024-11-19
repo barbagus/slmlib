@@ -1,5 +1,5 @@
 [workspace]
-members = ["dev"]
+members = ["dev", "slm"]
 resolver = "2"
 
 [package]
