@@ -13,3 +13,4 @@
 // <https://www.gnu.org/licenses/>.
 
 pub mod sml;
+pub mod sml_scores;

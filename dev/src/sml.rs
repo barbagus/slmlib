@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use crate::geo::Point;
 use serde::Deserialize;
+use std::{fs::File, io::BufReader, path::Path};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct SMLPoint {
@@ -54,39 +54,42 @@ pub struct SMLAttempt {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct SMLDoc {
+struct SMLDoc {
     #[serde(rename = "Attempt")]
-    pub attempt: SMLAttempt,
-    #[serde(rename = "Init_Drop")]
-    pub init_drop: u32,
-    #[serde(rename = "Init_ScoreLevel")]
-    pub init_score_level: u32,
-    #[serde(rename = "Name")]
-    pub name: String,
+    attempt: SMLAttempt,
 }
 
+// type Point = (f64, f64);
+
 impl SMLAttempt {
-    pub fn target_line(&self) -> (Point, Point) {
+    pub fn route(&self) -> ((f64, f64), (f64, f64)) {
         if let Some(ref start) = self.target_line_start {
             let end = self.target_line_end.as_ref().unwrap();
             (
-                Point::new(start.latitude, start.longitude).unwrap(),
-                Point::new(end.latitude, end.longitude).unwrap(),
+                (start.latitude, start.longitude),
+                (end.latitude, end.longitude),
             )
         } else {
             assert!(self.target_line_end.is_none());
             let start = self.points.first().unwrap();
             let end = self.points.last().unwrap();
             (
-                Point::new(start.latitude, start.longitude).unwrap(),
-                Point::new(end.latitude, end.longitude).unwrap(),
+                (start.latitude, start.longitude),
+                (end.latitude, end.longitude),
             )
         }
     }
 
-    pub fn geo_points(&self) -> impl Iterator<Item = Point> + '_ {
-        self.points
-            .iter()
-            .map(|p| Point::new(p.latitude, p.longitude).unwrap())
+    pub fn track(&self) -> impl Iterator<Item = (f64, f64)> + '_ {
+        self.points.iter().map(|p| (p.latitude, p.longitude))
     }
+}
+
+pub fn load<P>(path: P) -> SMLAttempt
+where
+    P: AsRef<Path>,
+{
+    let rdr = File::open(path).unwrap();
+    let rdr = BufReader::new(rdr);
+    serde_json::from_reader::<_, SMLDoc>(rdr).unwrap().attempt
 }

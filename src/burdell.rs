@@ -12,13 +12,14 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use crate::stats::Stats;
-use core::iter;
+use crate::stats::TrackStats;
 
+///
 /// A Burdell score penalty setting.
+///
 #[derive(Debug, Clone, Copy)]
 pub struct BurdellSettings {
-    /// Distance in meters over which each penalty terms computed (small is more severe).
+    /// Distance in meters over which each penalty term is computed (small is more severe).
     step: f64,
     /// A magic number (small is more severe).
     coefficient: f64,
@@ -42,8 +43,11 @@ pub const LVL_NEWBIE: BurdellSettings = BurdellSettings {
     coefficient: 200.0,
 };
 
-pub fn compute(config: BurdellSettings, stats: &Stats) -> f64 {
-    let steps = (stats.target_line_length / config.step).ceil() as usize;
+///
+/// Burdell score computation
+///
+pub fn compute_burdell_score(config: BurdellSettings, stats: &TrackStats) -> f64 {
+    let steps = (stats.route_length / config.step).ceil() as usize;
 
     let mut slots: Vec<Option<f64>> = vec![None; steps];
 
@@ -68,26 +72,26 @@ pub fn compute(config: BurdellSettings, stats: &Stats) -> f64 {
 
     used_slots.sort_unstable();
 
-    for (i1, i2) in iter::zip(
+    for (i1, i2) in core::iter::zip(
         used_slots.iter().cloned(),
         used_slots.iter().skip(1).cloned(),
     ) {
         if i2 - i1 > 1 {
             let fill = (slots[i1].unwrap() + slots[i2].unwrap()) / 2.0;
-            for i in (i1 + 1)..i2 {
-                slots[i].replace(fill);
+            for slot in slots.iter_mut().take(i2).skip(i1 + 1) {
+                slot.replace(fill);
             }
         }
     }
 
-    for i in 0..(*used_slots.first().unwrap()) {
-        slots[i].replace(0_f64);
+    for slot in slots.iter_mut().take(*used_slots.first().unwrap()) {
+        slot.replace(0_f64);
     }
-    for i in (*used_slots.last().unwrap() + 1)..slots.len() {
-        slots[i].replace(0_f64);
+    for slot in slots.iter_mut().skip(*used_slots.last().unwrap() + 1) {
+        slot.replace(0_f64);
     }
 
-    let log = stats.target_line_length.log10();
+    let log = stats.route_length.log10();
     let mut penalities: f64 = 0.0;
     for slot in slots {
         penalities += 100.0 * (slot.unwrap() / config.coefficient).powf(log);

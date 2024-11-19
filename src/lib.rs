@@ -12,34 +12,17 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-pub use burdell::{BurdellSettings, LVL_AMATEUR, LVL_NEWBIE, LVL_PRO};
-pub use geo::Point;
-pub use stats::geodetic_distance;
-
 mod burdell;
 mod geo;
-mod linalg;
 mod stats;
-mod wsg84;
 
-pub mod files;
-
-/// A scoring configuration
-#[derive(Debug)]
-pub struct Config {
-    /// Burdell penalty setting.
-    pub burdell: BurdellSettings,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { burdell: LVL_PRO }
-    }
-}
+pub use burdell::{compute_burdell_score, LVL_AMATEUR, LVL_NEWBIE, LVL_PRO};
+pub use geo::Point;
+pub use stats::{compute_stats, PointStats, TrackStats};
 
 /// The medal color associated with a max deviation value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Medal {
+pub enum MedalRank {
     /// Max deviation less than 25 meters.
     Platinum,
     /// Max deviation less than 50 meters.
@@ -49,42 +32,108 @@ pub enum Medal {
     /// Max deviation less than 100 meters.
     Bronze,
 }
-
-impl Medal {
-    pub fn from_max_deviation(value: f64) -> Option<Self> {
-        let value = value.abs();
-        if value < 25.0 {
-            Some(Medal::Platinum)
-        } else if value < 50.0 {
-            Some(Medal::Gold)
-        } else if value < 75.0 {
-            Some(Medal::Silver)
-        } else if value < 100.0 {
-            Some(Medal::Bronze)
-        } else {
-            None
-        }
+pub fn compute_medal_rank(stats: &TrackStats) -> Option<MedalRank> {
+    let value = stats.max_deviation;
+    if value < 25.0 {
+        Some(MedalRank::Platinum)
+    } else if value < 50.0 {
+        Some(MedalRank::Gold)
+    } else if value < 75.0 {
+        Some(MedalRank::Silver)
+    } else if value < 100.0 {
+        Some(MedalRank::Bronze)
+    } else {
+        None
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Score {
-    pub target_line_length: f64,
-    pub max_deviation: f64,
-    pub medal: Option<Medal>,
-    pub burdell: f64,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+    use std::path::PathBuf;
 
-pub fn score_my_line<I>(config: Config, target_line: (Point, Point), points: I) -> Score
-where
-    I: IntoIterator<Item = Point>,
-{
-    let stats = stats::compute(target_line, points);
+    macro_rules! mission_tests {
+        ($($name:ident: $path:expr,)*) => {
+        $(
+            #[test]
+            fn $name() {
+                let sml_path = PathBuf::from($path);
+                let sml = dev::sml::load(&sml_path);
+                let route = {
+                    let (start, end) = sml.route();
+                    let start = Point::new(start.0, start.1);
+                    let end = Point::new(end.0, end.1);
+                    (start, end)
+                };
 
-    Score {
-        target_line_length: stats.target_line_length,
-        max_deviation: stats.max_deviation,
-        medal: Medal::from_max_deviation(stats.max_deviation),
-        burdell: burdell::compute(config.burdell, &stats),
+                let stats = compute_stats(route, sml.track().map(|t| Point::new(t.0, t.1)));
+                let scores = dev::sml_scores::load(sml_path.with_extension("json"));
+
+                assert_abs_diff_eq!(stats.route_length, sml.target_line_length, epsilon = 1e-2);
+                assert_abs_diff_eq!(
+                    stats.route_length / 1000_f64,
+                    scores.route_length,
+                    epsilon = 1e-2
+                );
+
+                assert_eq!(
+                    match compute_medal_rank(&stats) {
+                        Some(MedalRank::Platinum) => Some(String::from("PLATINUM")),
+                        Some(MedalRank::Gold) => Some(String::from("GOLD")),
+                        Some(MedalRank::Silver) => Some(String::from("SILVER")),
+                        Some(MedalRank::Bronze) => Some(String::from("BRONZE")),
+                        None => None,
+                    },
+                    scores.scores[0].medal
+                );
+
+                let mut max_deviation = 0_f64;
+
+                for (point_stats, sml_point) in std::iter::zip(stats.points.iter(), sml.points.iter()) {
+                    assert_abs_diff_eq!(
+                        point_stats.deviation,
+                        sml_point.distance_to_line,
+                        epsilon = 1e-2,
+                    );
+                    assert_abs_diff_eq!(
+                        point_stats.made_good,
+                        sml_point.control_point_distance_to_start,
+                        epsilon = 1e-2
+                    );
+
+                    if sml_point.distance_to_line > max_deviation {
+                        max_deviation = sml_point.distance_to_line;
+                    }
+                }
+
+                assert_abs_diff_eq!(stats.max_deviation, max_deviation, epsilon = 1e-2);
+                assert_abs_diff_eq!(
+                    stats.max_deviation,
+                    scores.scores[0].max_deviation,
+                    epsilon = 1e-1
+                );
+            }
+        )*
+        }
+    }
+    mission_tests! {
+        mission_archie_iom: "fixtures/archie-iom.sml",
+        mission_archie_scotland: "fixtures/archie-scotland.sml",
+        mission_archie_wales_run: "fixtures/archie-wales-run.sml",
+        mission_archie_wales_walk: "fixtures/archie-wales-walk.sml",
+        mission_geowizard_iom: "fixtures/geowizard-iom.sml",
+        mission_geowizard_norway: "fixtures/geowizard-norway.sml",
+        mission_geowizard_scotland: "fixtures/geowizard-scotland.sml",
+        mission_geowizard_wales1a: "fixtures/geowizard-wales1a.sml",
+        mission_geowizard_wales1b: "fixtures/geowizard-wales1b.sml",
+        mission_geowizard_wales2: "fixtures/geowizard-wales2.sml",
+        mission_geowizard_wales3: "fixtures/geowizard-wales3.sml",
+        mission_geowizard_wales4: "fixtures/geowizard-wales4.sml",
+        mission_hiiumaa: "fixtures/hiiumaa.sml",
+        mission_muhu: "fixtures/muhu.sml",
+        mission_new_forest: "fixtures/new-forest.sml",
+        mission_saaremaa: "fixtures/saaremaa.sml",
+        mission_schaffhausen: "fixtures/schaffhausen.sml",
     }
 }
