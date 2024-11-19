@@ -11,3 +11,7 @@ slmlib = {path = "../"}
 [lib]
 name = "dev"
 path = "src/lib.rs"
+
+[[bin]]
+name = "compare_scores"
+path = "src/compare_scores.rs"
