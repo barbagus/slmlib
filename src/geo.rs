@@ -17,7 +17,7 @@
 ///
 /// A geographical point.
 ///
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
     /// Latitude in radians (negative means South).
     lat_rad: f64,

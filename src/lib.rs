@@ -13,11 +13,19 @@
 // <https://www.gnu.org/licenses/>.
 
 mod burdell;
+#[cfg(feature = "csv")]
+mod csv;
 mod geo;
+#[cfg(feature = "gpx")]
+mod gpx;
 mod stats;
 
 pub use burdell::{compute_burdell_score, LVL_AMATEUR, LVL_NEWBIE, LVL_PRO};
+#[cfg(feature = "csv")]
+pub use csv::CsvReader;
 pub use geo::Point;
+#[cfg(feature = "gpx")]
+pub use gpx::GpxReader;
 pub use stats::{compute_stats, PointStats, TrackStats};
 
 /// The medal color associated with a max deviation value.

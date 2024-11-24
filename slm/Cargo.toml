@@ -10,5 +10,4 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.93"
 color-print = "0.3.7"
-slmlib = {path = "../"}
-xml = "0.8.20"
+slmlib = {path = "../", features=["csv", "gpx"]}

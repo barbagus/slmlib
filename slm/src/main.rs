@@ -12,19 +12,12 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use std::{
-    env, fs,
-    io::{self, BufRead},
-    path::PathBuf,
-};
-
 use anyhow::{anyhow, bail, Result};
 use color_print::cstr;
-use xml::reader::{EventReader, XmlEvent};
+use slmlib::{CsvReader, GpxReader, Point};
+use std::{env, fs, io, path::PathBuf};
 
-use slmlib::Point;
-
-const USAGE: &'static str = cstr!(
+const USAGE: &str = cstr!(
     "<bold,underline>Usage:</> slm[.exe] [OPTIONS] FILE
 
 <bold,underline>Arguments:</>
@@ -55,79 +48,6 @@ fn parse_point(value: &str) -> Result<Point> {
     let lat = lat.parse::<f64>()?;
     let lon = lon.parse::<f64>()?;
     Ok(Point::new(lat, lon))
-}
-
-fn read_csv_track<R: io::Read>(rdr: R) -> Result<Vec<Point>> {
-    let mut rdr = io::BufReader::new(rdr);
-    let mut track: Vec<Point> = Vec::new();
-    let mut line = String::new();
-    loop {
-        if rdr.read_line(&mut line)? == 0 {
-            break;
-        };
-
-        let trimmed = line.trim_end();
-        if trimmed.is_empty() {
-            line.clear();
-            continue;
-        }
-
-        match parse_point(&trimmed) {
-            Ok(point) => {
-                line.clear();
-                track.push(point);
-            }
-            Err(err) => {
-                if track.is_empty() {
-                    line.clear();
-                    continue;
-                } else {
-                    Err(err)?
-                }
-            }
-        }
-    }
-
-    Ok(track)
-}
-
-fn read_gpx_track<R: io::Read>(rdr: R) -> Result<Vec<Point>> {
-    let mut track: Vec<Point> = Vec::new();
-    let rdr = io::BufReader::new(rdr);
-    let events = EventReader::new(rdr);
-
-    for e in events {
-        match e {
-            Ok(XmlEvent::StartElement {
-                name, attributes, ..
-            }) if name.local_name == "trkpt" => {
-                let mut lat: Option<f64> = None;
-                let mut lon: Option<f64> = None;
-                for attr in attributes {
-                    match attr.name.local_name.as_str() {
-                        "lat" => {
-                            lat.replace(attr.value.parse::<f64>()?);
-                        }
-                        "lon" => {
-                            lon.replace(attr.value.parse::<f64>()?);
-                        }
-                        _ => {
-                            continue;
-                        }
-                    }
-                }
-                track.push(Point::new(
-                    lat.ok_or(anyhow!("Missing 'lat' attribute."))?,
-                    lon.ok_or(anyhow!("Missing 'lon' attribute."))?,
-                ));
-            }
-            Ok(XmlEvent::EndElement { name }) if name.local_name == "trk" => break,
-            Ok(_) => continue,
-            Err(err) => Err(err)?,
-        }
-    }
-
-    Ok(track)
 }
 
 fn main() -> Result<()> {
@@ -220,11 +140,17 @@ fn main() -> Result<()> {
         }
     };
 
-    let rdr = fs::File::open(input_path)?;
+    let rdr = io::BufReader::new(fs::File::open(input_path)?);
 
     let track = match input_format {
-        Format::Csv => read_csv_track(rdr)?,
-        Format::Gpx => read_gpx_track(rdr)?,
+        Format::Csv => match CsvReader::new(rdr).collect::<Result<Vec<Point>, _>>() {
+            Ok(track) => track,
+            Err(err) => return Err(err.into()),
+        },
+        Format::Gpx => match GpxReader::new(rdr).collect::<Result<Vec<Point>, _>>() {
+            Ok(track) => track,
+            Err(err) => return Err(err.into()),
+        },
     };
 
     if track.is_empty() {
