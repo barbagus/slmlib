@@ -13,6 +13,7 @@
 // <https://www.gnu.org/licenses/>.
 
 //! Geographic utilities library
+use libm::{asin, atan, atan2, fabs, sincos, sqrt, tan};
 
 ///
 /// A geographical point.
@@ -42,8 +43,7 @@ impl Point {
 
     /// Approximate equality down `epsilon`
     fn approx_eq(&self, other: Self, epsilon: f64) -> bool {
-        (self.lat_rad - other.lat_rad).abs() < epsilon
-            && (self.lon_rad - other.lon_rad).abs() < epsilon
+        fabs(self.lat_rad - other.lat_rad) < epsilon && fabs(self.lon_rad - other.lon_rad) < epsilon
     }
 }
 
@@ -92,7 +92,7 @@ impl Vector {
 
     /// Length
     fn len(self) -> f64 {
-        self.dot(self).sqrt()
+        sqrt(self.dot(self))
     }
 
     /// convert to unit vector with same direction
@@ -103,10 +103,10 @@ impl Vector {
 
 impl From<Point> for Vector {
     fn from(value: Point) -> Self {
-        let (sin_lat, cos_lat) = value.lat_rad.sin_cos();
-        let (sin_lon, cos_lon) = value.lon_rad.sin_cos();
+        let (sin_lat, cos_lat) = sincos(value.lat_rad);
+        let (sin_lon, cos_lon) = sincos(value.lon_rad);
 
-        let r: f64 = AB / (B2 * cos_lat * cos_lat + A2 * sin_lat * sin_lat).sqrt();
+        let r: f64 = AB / sqrt(B2 * cos_lat * cos_lat + A2 * sin_lat * sin_lat);
 
         Vector {
             x: cos_lon * cos_lat * r,
@@ -121,8 +121,8 @@ impl From<Vector> for Point {
         let value = value.to_unit();
 
         Point {
-            lat_rad: value.z.asin(),
-            lon_rad: value.y.atan2(value.x),
+            lat_rad: asin(value.z),
+            lon_rad: atan2(value.y, value.x),
         }
     }
 }
@@ -212,18 +212,19 @@ const AB: f64 = A * B;
 pub fn vincenty_inverse(p1: Point, p2: Point, max_iteration: i32, accuracy: f64) -> Option<f64> {
     let big_l = p2.lon_rad - p1.lon_rad;
 
-    let (sin_u1, cos_u1) = ((1_f64 - F) * p1.lat_rad.tan()).atan().sin_cos();
-    let (sin_u2, cos_u2) = ((1_f64 - F) * p2.lat_rad.tan()).atan().sin_cos();
+    let (sin_u1, cos_u1) = sincos(atan((1_f64 - F) * tan(p1.lat_rad)));
+    let (sin_u2, cos_u2) = sincos(atan((1_f64 - F) * tan(p2.lat_rad)));
 
     let mut lambda = big_l;
 
     for _ in 0..max_iteration {
-        let (sin_lambda, cos_lambda) = lambda.sin_cos();
+        let (sin_lambda, cos_lambda) = sincos(lambda);
 
-        let sin_sigma = ((cos_u2 * sin_lambda) * (cos_u2 * sin_lambda)
-            + (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda)
-                * (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda))
-            .sqrt();
+        let sin_sigma = sqrt(
+            (cos_u2 * sin_lambda) * (cos_u2 * sin_lambda)
+                + (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda)
+                    * (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda),
+        );
 
         if sin_sigma == 0_f64 {
             return if p1.quasi_eq(p2) {
@@ -237,7 +238,7 @@ pub fn vincenty_inverse(p1: Point, p2: Point, max_iteration: i32, accuracy: f64)
 
         let cos_sigma = sin_u1 * sin_u2 + cos_u1 * cos_u2 * cos_lambda;
 
-        let sigma = sin_sigma.atan2(cos_sigma);
+        let sigma = atan2(sin_sigma, cos_sigma);
 
         let sin_alpha = cos_u1 * cos_u2 * sin_lambda / sin_sigma;
 
@@ -262,7 +263,7 @@ pub fn vincenty_inverse(p1: Point, p2: Point, max_iteration: i32, accuracy: f64)
                         * (cos_2sigma_m
                             + c * cos_sigma * (-1_f64 + 2_f64 * cos_2sigma_m * cos_2sigma_m)));
 
-        if (lambda - lambda_prev).abs() <= accuracy {
+        if fabs(lambda - lambda_prev) <= accuracy {
             let u2 = cos2_alpha * (A2 - B2) / (B2);
             let a = 1_f64
                 + u2 / 16384_f64 * (4096_f64 + u2 * (-768_f64 + u2 * (320_f64 - 175_f64 * u2)));

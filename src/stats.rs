@@ -12,7 +12,10 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
+extern crate alloc;
+
 use super::geo::{vincenty_inverse, Geodesic, Point, Sequence};
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone)]
 pub struct PointStats {

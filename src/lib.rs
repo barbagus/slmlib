@@ -11,6 +11,7 @@
 // Public License for more details.
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
+#![no_std]
 
 mod burdell;
 mod geo;
@@ -49,16 +50,19 @@ pub fn compute_medal_rank(stats: &TrackStats) -> Option<MedalRank> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
     use super::*;
     use approx::assert_abs_diff_eq;
-    use std::{fs, path::PathBuf};
+    use core::iter;
+    use std::{fs, path, string::String};
 
     macro_rules! mission_tests {
         ($($name:ident: $path:expr,)*) => {
         $(
             #[test]
             fn $name() {
-                let sml_path = PathBuf::from($path);
+                let sml_path = path::PathBuf::from($path);
                 let buf = fs::read(sml_path.clone()).expect("read SML file");
                 let sml = files::sml::load(&buf).expect("parse SML file");
                 let route = {
@@ -93,7 +97,7 @@ mod tests {
 
                 let mut max_deviation = 0_f64;
 
-                for (point_stats, sml_point) in std::iter::zip(stats.points.iter(), sml.points.iter()) {
+                for (point_stats, sml_point) in iter::zip(stats.points.iter(), sml.points.iter()) {
                     assert_abs_diff_eq!(
                         point_stats.deviation,
                         sml_point.distance_to_line,

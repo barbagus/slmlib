@@ -12,7 +12,11 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
+extern crate alloc;
+
 use crate::stats::TrackStats;
+use alloc::{vec, vec::Vec};
+use libm::{ceil, floor, log10, pow};
 
 ///
 /// A Burdell score penalty setting.
@@ -47,14 +51,14 @@ pub const LVL_NEWBIE: BurdellSettings = BurdellSettings {
 /// Burdell score computation
 ///
 pub fn compute_burdell_score(config: BurdellSettings, stats: &TrackStats) -> f64 {
-    let steps = (stats.route_length / config.step).ceil() as usize;
+    let steps = ceil(stats.route_length / config.step) as usize;
 
     let mut slots: Vec<Option<f64>> = vec![None; steps];
 
     let mut used_slots: Vec<usize> = Vec::with_capacity(slots.len());
 
     for p in stats.points.iter() {
-        let i = (p.made_good / config.step).floor() as usize;
+        let i = floor(p.made_good / config.step) as usize;
         let slot = slots.get_mut(i).unwrap();
 
         match slot {
@@ -91,10 +95,10 @@ pub fn compute_burdell_score(config: BurdellSettings, stats: &TrackStats) -> f64
         slot.replace(0_f64);
     }
 
-    let log = stats.route_length.log10();
+    let log = log10(stats.route_length);
     let mut penalities: f64 = 0.0;
     for slot in slots {
-        penalities += 100.0 * (slot.unwrap() / config.coefficient).powf(log);
+        penalities += 100.0 * pow(slot.unwrap() / config.coefficient, log);
     }
 
     f64::max(100.0 - penalities, 0.0)
