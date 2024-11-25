@@ -1,5 +1,5 @@
 [workspace]
-members = ["dev", "slm"]
+members = ["dev", "files", "slm"]
 resolver = "2"
 
 [package]
@@ -15,15 +15,6 @@ repository = "https://github.com/barbagus/slmlib"
 name = "slmlib"
 path = "src/lib.rs"
 
-[dependencies.xml]
-version = "0.8.20"
-optional = true
-
-[features]
-csv=[]
-gpx=["dep:xml"]
-default=["csv", "gpx"]
-
 [dev-dependencies]
 approx = "0.5.1"
-dev = {path = "dev"}
+files = {path = "files", features = ["sml", "fix"]}

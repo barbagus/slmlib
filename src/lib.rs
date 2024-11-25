@@ -13,19 +13,11 @@
 // <https://www.gnu.org/licenses/>.
 
 mod burdell;
-#[cfg(feature = "csv")]
-mod csv;
 mod geo;
-#[cfg(feature = "gpx")]
-mod gpx;
 mod stats;
 
 pub use burdell::{compute_burdell_score, LVL_AMATEUR, LVL_NEWBIE, LVL_PRO};
-#[cfg(feature = "csv")]
-pub use csv::CsvReader;
 pub use geo::Point;
-#[cfg(feature = "gpx")]
-pub use gpx::GpxReader;
 pub use stats::{compute_stats, PointStats, TrackStats};
 
 /// The medal color associated with a max deviation value.
@@ -67,7 +59,7 @@ mod tests {
             #[test]
             fn $name() {
                 let sml_path = PathBuf::from($path);
-                let sml = dev::sml::load(&sml_path);
+                let sml = files::sml::load(&sml_path);
                 let route = {
                     let (start, end) = sml.route();
                     let start = Point::new(start.0, start.1);
@@ -76,7 +68,7 @@ mod tests {
                 };
 
                 let stats = compute_stats(route, sml.track().map(|t| Point::new(t.0, t.1)));
-                let scores = dev::sml_scores::load(sml_path.with_extension("json"));
+                let scores = files::fix::load(sml_path.with_extension("json"));
 
                 assert_abs_diff_eq!(stats.route_length, sml.target_line_length, epsilon = 1e-2);
                 assert_abs_diff_eq!(

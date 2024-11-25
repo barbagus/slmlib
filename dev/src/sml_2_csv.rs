@@ -18,7 +18,6 @@
 //! The expected results have been manually collected from the site and organized in so called
 //! "meta" files.
 
-use dev::sml;
 use std::{
     env,
     fs::File,
@@ -30,7 +29,7 @@ fn main() {
     let input_file: PathBuf = env::args().nth(1).expect("No input file specified.").into();
     let output_file = input_file.clone().with_extension("csv");
 
-    let attempt = sml::load(input_file);
+    let attempt = files::sml::load(input_file);
     let wtr = File::create(output_file).expect("Open output file");
     let mut wtr = BufWriter::new(wtr);
     writeln!(&mut wtr, "Latitude,Longitude").expect("Write headers");

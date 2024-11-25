@@ -18,9 +18,7 @@
 //! The expected results have been manually collected from the site and organized in so called
 //! "meta" files.
 
-use dev::{sml, sml_scores};
 use slmlib::{compute_stats, Point};
-use sml_scores::BurdellLevel;
 use std::fs::read_dir;
 
 fn fmt_err(err: f64) -> String {
@@ -94,7 +92,7 @@ fn main() {
         let scores_path = sml_path.clone().with_extension("json");
 
         let (route, track) = {
-            let attempt = sml::load(sml_path);
+            let attempt = files::sml::load(sml_path);
             let route = {
                 let (start, end) = attempt.route();
                 let start = Point::new(start.0, start.1);
@@ -111,17 +109,17 @@ fn main() {
             )
         };
 
-        let scores_doc = sml_scores::load(scores_path);
+        let scores_doc = files::fix::load(scores_path);
 
         for score in scores_doc.scores.into_iter().filter(|s| s.ignore.is_none()) {
             let stats = compute_stats(route, track.iter().cloned());
 
-            let scores = BurdellLevel::each()
+            let scores = files::fix::BurdellLevel::each()
                 .map(|level| {
                     let settings = match level {
-                        BurdellLevel::Pro => slmlib::LVL_PRO,
-                        BurdellLevel::Amateur => slmlib::LVL_AMATEUR,
-                        BurdellLevel::Newbie => slmlib::LVL_NEWBIE,
+                        files::fix::BurdellLevel::Pro => slmlib::LVL_PRO,
+                        files::fix::BurdellLevel::Amateur => slmlib::LVL_AMATEUR,
+                        files::fix::BurdellLevel::Newbie => slmlib::LVL_NEWBIE,
                     };
 
                     let burdell_score = slmlib::compute_burdell_score(settings, &stats);

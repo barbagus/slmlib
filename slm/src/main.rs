@@ -14,7 +14,9 @@
 
 use anyhow::{anyhow, bail, Result};
 use color_print::cstr;
-use slmlib::{CsvReader, GpxReader, Point};
+use files::csv::CsvReader;
+use files::gpx::GpxReader;
+use slmlib::Point;
 use std::{env, fs, io, path::PathBuf};
 
 const USAGE: &str = cstr!(

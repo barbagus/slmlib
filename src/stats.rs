@@ -20,6 +20,7 @@ pub struct PointStats {
     pub made_good: f64,
 }
 
+#[derive(Debug, Clone)]
 pub struct TrackStats {
     pub route_length: f64,
     pub max_deviation: f64,

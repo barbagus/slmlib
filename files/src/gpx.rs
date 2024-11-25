@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use super::geo::Point;
+use slmlib::Point;
 use std::{
     borrow::Cow,
     error,
