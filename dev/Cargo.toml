@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 slmlib = {path = "../"}
-files = {path = "../files", features=["sml", "fix"]}
+files = {path = "../files", features=["sml", "fix", "csv"]}
 
 
 [[bin]]

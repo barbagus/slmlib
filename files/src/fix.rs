@@ -12,30 +12,21 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
+//! A JSON file used for testing. It represents the results from <https://scoremyline.com/>.
+extern crate alloc;
+use alloc::{string::String, vec::Vec};
 use serde::Deserialize;
-use std::{collections::HashMap, fs::File, io::BufReader, path::Path};
 
-/// "meta" file: the burdell "level" (not sure how to qualify this)
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub enum BurdellLevel {
-    Pro,
-    Amateur,
-    Newbie,
-}
-impl BurdellLevel {
-    pub fn each() -> impl Iterator<Item = Self> {
-        [
-            BurdellLevel::Pro,
-            BurdellLevel::Amateur,
-            BurdellLevel::Newbie,
-        ]
-        .into_iter()
-    }
+pub struct BurdellLevel {
+    pub pro: f64,
+    pub amateur: f64,
+    pub newbie: f64,
 }
 
 /// "meta" file: the leniency level (percentage of worst points ignored)
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LeniencyLevel {
     /// Percentage of points dropped (if any)
@@ -45,7 +36,7 @@ pub struct LeniencyLevel {
     /// Medal ranking (if any)
     pub medal: Option<String>,
     /// A `BurdellLevel` to burdell score mapping
-    pub scores: HashMap<BurdellLevel, f64>,
+    pub scores: BurdellLevel,
 }
 
 /// "meta" file: the document "root" object
@@ -58,11 +49,6 @@ pub struct SMLScores {
     pub scores: Vec<LeniencyLevel>,
 }
 
-pub fn load<P>(path: P) -> SMLScores
-where
-    P: AsRef<Path>,
-{
-    let rdr = File::open(path).unwrap();
-    let rdr = BufReader::new(rdr);
-    serde_json::from_reader::<_, SMLScores>(rdr).unwrap()
+pub fn load(buf: &[u8]) -> Result<SMLScores, serde_json::Error> {
+    Ok(serde_json::from_reader::<_, SMLScores>(buf)?)
 }

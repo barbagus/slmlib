@@ -12,189 +12,168 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use slmlib::Point;
-use std::{
-    borrow::Cow,
-    error,
-    fmt::Display,
-    io::{self, Read},
-    str,
-};
-use xml::{
-    common::Position,
-    reader::{EventReader, XmlEvent},
-};
+extern crate alloc;
 
-#[derive(Debug)]
-pub enum ErrorKind {
-    Eof,
-    Io(io::Error),
-    MissingLatitude,
-    MissingLongitude,
+use alloc::vec::Vec;
+use core::{error, f64, fmt, str};
+use xmlparser::{ElementEnd, TextPos, Token, Tokenizer};
+
+#[derive(Debug, Clone)]
+pub enum Error {
+    DuplicateCoordinate(TextPos),
+    InvalidCoordinate(TextPos),
+    MissingCoordinate(TextPos),
     Utf8(str::Utf8Error),
-    Value,
-    Xml(Cow<'static, str>),
-}
-
-#[derive(Debug)]
-pub struct Error {
-    pub row: u64,
-    pub column: u64,
-    pub kind: ErrorKind,
-}
-
-impl From<xml::reader::Error> for Error {
-    fn from(err: xml::reader::Error) -> Self {
-        let position = err.position();
-
-        let kind = match err.kind().to_owned() {
-            xml::reader::ErrorKind::Syntax(cow) => ErrorKind::Xml(cow),
-            xml::reader::ErrorKind::Io(error) => ErrorKind::Io(error),
-            xml::reader::ErrorKind::Utf8(utf8_error) => ErrorKind::Utf8(utf8_error),
-            xml::reader::ErrorKind::UnexpectedEof => ErrorKind::Eof,
-        };
-
-        Self {
-            row: position.row,
-            column: position.column,
-            kind,
-        }
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{} ", self.row, self.column)?;
-        match self.kind {
-            ErrorKind::Eof => write!(f, "unexpected EOF"),
-            ErrorKind::Io(ref error) => error.fmt(f),
-            ErrorKind::MissingLatitude => write!(f, "missing latitude"),
-            ErrorKind::MissingLongitude => write!(f, "missing longitude"),
-            ErrorKind::Utf8(ref utf8_error) => utf8_error.fmt(f),
-            ErrorKind::Value => write!(f, "ill-formed coordinate value"),
-            ErrorKind::Xml(ref cow) => f.write_str(cow),
-        }
-    }
+    XmlForm(TextPos),
+    XmlStack(TextPos),
+    XmlStream(xmlparser::Error),
 }
 
 impl error::Error for Error {}
 
-pub struct GpxReader<R: Read> {
-    inner: EventReader<R>,
-    has_finished: bool,
-}
-
-impl<R: Read> GpxReader<R> {
-    pub fn new(rdr: R) -> Self {
-        Self {
-            inner: EventReader::new(rdr),
-            has_finished: false,
-        }
-    }
-
-    pub fn get_ref(&self) -> &R {
-        &self.inner.source()
-    }
-
-    pub fn get_mut(&mut self) -> &mut R {
-        self.inner.source_mut()
-    }
-
-    pub fn into_inner(self) -> R {
-        self.inner.into_inner()
-    }
-
-    fn fail(&mut self, kind: ErrorKind) -> Option<Result<Point, Error>> {
-        self.has_finished = true;
-        let position = self.inner.position();
-        return Some(Err(Error {
-            row: position.row + 1,
-            column: position.column + 1,
-            kind,
-        }));
-    }
-}
-
-impl<R: Read> Iterator for GpxReader<R> {
-    type Item = Result<Point, Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.has_finished {
-            return None;
-        }
-
-        loop {
-            let event = match self.inner.next() {
-                Ok(event) => event,
-                Err(err) => {
-                    self.has_finished = true;
-                    return Some(Err(err.into()));
-                }
-            };
-
-            match event {
-                XmlEvent::StartElement {
-                    name, attributes, ..
-                } if name.local_name == "trkpt" => {
-                    let mut lat: Option<f64> = None;
-                    let mut lon: Option<f64> = None;
-                    for attr in attributes {
-                        match attr.name.local_name.as_str() {
-                            "lat" => match attr.value.parse::<f64>() {
-                                Err(_) => return self.fail(ErrorKind::Value),
-                                Ok(value) => {
-                                    lat.replace(value);
-                                }
-                            },
-                            "lon" => match attr.value.parse::<f64>() {
-                                Err(_) => return self.fail(ErrorKind::Value),
-                                Ok(value) => {
-                                    lon.replace(value);
-                                }
-                            },
-                            _ => {
-                                continue;
-                            }
-                        }
-                    }
-
-                    let lat = match lat {
-                        Some(lat) => lat,
-                        None => return self.fail(ErrorKind::MissingLatitude),
-                    };
-
-                    let lon = match lon {
-                        Some(lon) => lon,
-                        None => return self.fail(ErrorKind::MissingLongitude),
-                    };
-
-                    return Some(Ok(Point::new(lat, lon)));
-                }
-                XmlEvent::EndElement { name } if name.local_name == "trk" => {
-                    self.has_finished = true;
-                    return None;
-                }
-                _ => continue,
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::DuplicateCoordinate(text_pos) => {
+                write!(f, "{}:{} duplicate coordinate", text_pos.row, text_pos.col)
             }
+            Error::InvalidCoordinate(text_pos) => {
+                write!(f, "{}:{} invalid coordinate", text_pos.row, text_pos.col)
+            }
+            Error::MissingCoordinate(text_pos) => {
+                write!(f, "{}:{} missing coordinate", text_pos.row, text_pos.col)
+            }
+            Error::Utf8(utf8_error) => utf8_error.fmt(f),
+            Error::XmlForm(text_pos) => {
+                write!(f, "{}:{} malformed xml", text_pos.row, text_pos.col)
+            }
+            Error::XmlStack(text_pos) => {
+                write!(
+                    f,
+                    "{}:{} xml stack (you found a bug !)",
+                    text_pos.row, text_pos.col
+                )
+            }
+            Error::XmlStream(error) => error.fmt(f),
         }
     }
+}
+
+impl From<str::Utf8Error> for Error {
+    fn from(value: str::Utf8Error) -> Self {
+        Error::Utf8(value)
+    }
+}
+impl From<xmlparser::Error> for Error {
+    fn from(value: xmlparser::Error) -> Self {
+        Self::XmlStream(value)
+    }
+}
+
+macro_rules! stack_error {
+    ($tokenizer: expr) => {
+        Error::XmlStack($tokenizer.stream().gen_text_pos())
+    };
+}
+
+macro_rules! form_error {
+    ($tokenizer: expr) => {
+        Err(Error::XmlForm($tokenizer.stream().gen_text_pos()))
+    };
+}
+
+macro_rules! set_coordinate {
+    ($tokenizer: expr, $src:expr, $dst: expr) => {{
+        let value = $src
+            .parse::<f64>()
+            .or_else(|_| Err(Error::InvalidCoordinate($tokenizer.stream().gen_text_pos())))?;
+
+        if let Some(_) = $dst.replace(value) {
+            return Err(Error::DuplicateCoordinate(
+                $tokenizer.stream().gen_text_pos(),
+            ));
+        };
+    }};
+}
+
+pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
+    let buf = str::from_utf8(buf)?;
+
+    let mut track: Vec<(f64, f64)> = Vec::new();
+    let mut stack: Vec<&str> = Vec::with_capacity(10);
+
+    let mut lat: Option<f64> = None;
+    let mut lon: Option<f64> = None;
+
+    let mut tokenizer = Tokenizer::from(buf);
+    loop {
+        let token = match tokenizer.next() {
+            None => break,
+            Some(token) => token,
+        }?;
+
+        match token {
+            Token::ElementStart { local, .. } => {
+                stack.push(local.as_str());
+            }
+            Token::Attribute { local, value, .. } => {
+                match stack.last().ok_or_else(|| stack_error!(tokenizer))? {
+                    &"trkpt" => match local.as_str() {
+                        "lat" => set_coordinate!(tokenizer, value, lat),
+                        "lon" => set_coordinate!(tokenizer, value, lon),
+                        _ => continue,
+                    },
+                    _ => continue,
+                }
+            }
+            Token::ElementEnd { end, .. } => {
+                let element = match end {
+                    ElementEnd::Open => continue,
+                    ElementEnd::Close(_, local) => {
+                        let element = stack.pop().ok_or_else(|| stack_error!(tokenizer))?;
+                        if local != element {
+                            return form_error!(tokenizer);
+                        }
+                        element
+                    }
+                    ElementEnd::Empty => stack.pop().ok_or_else(|| stack_error!(tokenizer))?,
+                };
+
+                match element {
+                    "trk" => break,
+                    "trkpt" => {
+                        track.push((
+                            lat.take().ok_or_else(|| {
+                                Error::MissingCoordinate(tokenizer.stream().gen_text_pos())
+                            })?,
+                            lon.take().ok_or_else(|| {
+                                Error::MissingCoordinate(tokenizer.stream().gen_text_pos())
+                            })?,
+                        ));
+                    }
+                    _ => continue,
+                }
+            }
+            _ => continue,
+        }
+    }
+    Ok(track)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    macro_rules! gpx_tests_ok {
+    macro_rules! csv_load_ok_tests {
         ($($name:ident: $csv:literal,)*) => {
         $(
             #[test]
             fn $name() {
-                let rdr = GpxReader::new($csv.as_bytes());
-                let points = rdr.map(|r| r.unwrap()).collect::<Vec<_>>();
-                let check = vec![
-                    Point::new(47.6655080, 8.5671500),
-                    Point::new(47.6655040, 8.5671580),
-                    Point::new(47.6655010, 8.5671610),
+                let points = load($csv.as_bytes()).unwrap();
+                let check = alloc::vec![
+                    (47.6655080, 8.5671500),
+                    (47.6655040, 8.5671580),
+                    (47.6655010, 8.5671610),
                 ]
                 .into_iter()
                 .collect::<Vec<_>>();
@@ -204,7 +183,7 @@ mod tests {
         )*
         }
     }
-    gpx_tests_ok! {
+    csv_load_ok_tests! {
         happy_case: r#"<?xml version="1.0" encoding="UTF-8"?>
 <gpx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
  <trk>

@@ -8,13 +8,13 @@ name = "files"
 path = "src/lib.rs"
 
 [dependencies]
-slmlib = {path = "../"}
-xml = {version = "0.8.20", optional = true}
-serde = {version="1.0.214", features = ["derive"], optional = true}
+serde = {version="1.0.214", default-features = false, features = ["derive", "alloc"], optional = true}
 serde_json = {version = "1.0.132", optional = true}
+slmlib = {path = "../"}
+xmlparser = {version = "0.13.6", default-features = false, optional = true}
 
 [features]
 csv = []
-gpx = ["dep:xml"]
-sml = ["dep:serde", "dep:serde_json"]
 fix = ["dep:serde", "dep:serde_json"]
+gpx = ["dep:xmlparser"]
+sml = ["dep:serde", "dep:serde_json"]

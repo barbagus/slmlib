@@ -51,7 +51,7 @@ pub fn compute_medal_rank(stats: &TrackStats) -> Option<MedalRank> {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
-    use std::path::PathBuf;
+    use std::{fs, path::PathBuf};
 
     macro_rules! mission_tests {
         ($($name:ident: $path:expr,)*) => {
@@ -59,7 +59,8 @@ mod tests {
             #[test]
             fn $name() {
                 let sml_path = PathBuf::from($path);
-                let sml = files::sml::load(&sml_path);
+                let buf = fs::read(sml_path.clone()).expect("read SML file");
+                let sml = files::sml::load(&buf).expect("parse SML file");
                 let route = {
                     let (start, end) = sml.route();
                     let start = Point::new(start.0, start.1);
@@ -68,7 +69,9 @@ mod tests {
                 };
 
                 let stats = compute_stats(route, sml.track().map(|t| Point::new(t.0, t.1)));
-                let scores = files::fix::load(sml_path.with_extension("json"));
+                let fix_path = sml_path.with_extension("json");
+                let buf = fs::read(fix_path).expect("read FIX file");
+                let scores = files::fix::load(&buf).expect("parse FIX file");
 
                 assert_abs_diff_eq!(stats.route_length, sml.target_line_length, epsilon = 1e-2);
                 assert_abs_diff_eq!(

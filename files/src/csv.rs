@@ -12,191 +12,213 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-use slmlib::Point;
-use std::{
+//! A straight line mission track as a CSV file. Specifically:
+//!  - Each line of the file should have only one latitude/longitude pair (separated by a comma).
+//!  - Latitudes and longitudes should be expressed in decimal degrees.
+//!  - Degrees North and East should be expressed as positive values.
+//!  - Degrees South and West should be expressed as negative values.
+//!  - A header row is optional
+//!  - File should be UTF-8 encoded
+//!
+//! Example:
+//! ```csv
+//!Latitude, Longitude
+//!52.6060,-1.91786
+//!52.6061,-1.91787
+//!52.6062,-1.91788
+//! ```
+//!
+extern crate alloc;
+
+use alloc::{string::String, vec::Vec};
+use core::{
     error,
-    fmt::Display,
-    io::{self, BufRead, BufReader, Read},
-    str,
+    fmt::{self, Write},
+    num, str, u64,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorKind {
-    Io(io::Error),
-    NoComa,
     Overflow,
-    Utf8(str::Utf8Error),
+    Syntax,
+    Utf8,
     Value,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error {
     pub row: u64,
     pub column: u64,
     pub kind: ErrorKind,
 }
 
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+const ERR_OVERFLOW: Error = Error {
+    row: u64::MAX,
+    column: u64::MAX,
+    kind: ErrorKind::Overflow,
+};
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{} ", self.row, self.column)?;
         match self.kind {
-            ErrorKind::Io(ref error) => error.fmt(f),
-            ErrorKind::NoComa => write!(f, "no comma separator"),
-            ErrorKind::Overflow => write!(f, "row/line too large"),
-            ErrorKind::Utf8(ref utf8_error) => utf8_error.fmt(f),
-            ErrorKind::Value => write!(f, "ill-formed coordinate value"),
+            ErrorKind::Overflow => f.write_str("row/line too large"),
+            ErrorKind::Syntax => f.write_str("no comma separator"),
+            ErrorKind::Utf8 => f.write_str("invalid utf-8 encoding"),
+            ErrorKind::Value => f.write_str("ill-formed coordinate value"),
         }
     }
 }
 
 impl error::Error for Error {}
 
-pub struct CsvReader<R: Read> {
-    row: u64,
-    column: u64,
-    line_buffer: Vec<u8>,
-    has_failed: bool,
-    inner: BufReader<R>,
-}
-
-impl<R: Read> CsvReader<R> {
-    pub fn new(rdr: R) -> Self {
-        Self {
-            row: 0,
-            column: 0,
-            has_failed: false,
-            inner: BufReader::new(rdr),
-            line_buffer: Vec::new(),
-        }
-    }
-
-    pub fn with_capacity(rdr: R, capacity: usize) -> Self {
-        Self {
-            row: 0,
-            column: 0,
-            has_failed: false,
-            inner: BufReader::new(rdr),
-            line_buffer: Vec::with_capacity(capacity),
-        }
-    }
-
-    pub fn get_ref(&self) -> &R {
-        &self.inner.get_ref()
-    }
-
-    pub fn get_mut(&mut self) -> &mut R {
-        self.inner.get_mut()
-    }
-
-    pub fn into_inner(self) -> R {
-        self.inner.into_inner()
-    }
-
-    fn fail(&mut self, kind: ErrorKind) -> Option<Result<Point, Error>> {
-        self.has_failed = true;
-        Some(Err(Error {
-            row: self.row,
-            column: self.column,
-            kind,
-        }))
+impl From<num::TryFromIntError> for Error {
+    fn from(_: num::TryFromIntError) -> Self {
+        ERR_OVERFLOW.clone()
     }
 }
 
-impl<R: Read> Iterator for CsvReader<R> {
-    type Item = Result<Point, Error>;
+impl From<fmt::Error> for Error {
+    fn from(_: fmt::Error) -> Self {
+        ERR_OVERFLOW.clone()
+    }
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.has_failed {
-            return None;
+const LINE_SEP: u8 = b'\n';
+const FIELD_SEP: &str = ",";
+
+macro_rules! inc {
+    ($i:expr) => {{
+        let row: u64 = $i.try_into()?;
+        row.checked_add(1).ok_or(ERR_OVERFLOW.clone())?
+    }};
+}
+
+pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
+    let buf = if let Some(b) = buf.last() {
+        if b == &LINE_SEP {
+            &buf[..(buf.len() - 1)]
+        } else {
+            buf
         }
+    } else {
+        return Ok(Vec::new());
+    };
 
-        self.row = match self.row.checked_add(1) {
-            Some(row) => row,
-            None => return self.fail(ErrorKind::Overflow),
+    let capacity: usize = buf.iter().filter(|c| *c == &LINE_SEP).count() + 1;
+
+    let mut track: Vec<(f64, f64)> = Vec::with_capacity(capacity);
+
+    for (i, line) in buf.split(|c| c == &LINE_SEP).enumerate() {
+        let line = match str::from_utf8(line) {
+            Ok(line) => line,
+            Err(_) => {
+                return Err(Error {
+                    row: inc!(i),
+                    column: 0,
+                    kind: ErrorKind::Utf8,
+                });
+            }
         };
 
-        self.column = 1;
+        let (lhs, rhs) = line.split_once(FIELD_SEP).ok_or(Error {
+            row: inc!(i),
+            column: 0,
+            kind: ErrorKind::Syntax,
+        })?;
 
-        match self.inner.read_until(b'\n', &mut self.line_buffer) {
-            Ok(0) => return None,
-            Ok(_) => {}
-            Err(err) => return self.fail(ErrorKind::Io(err)),
-        }
-
-        let line = match str::from_utf8(&self.line_buffer) {
-            Ok(line) => line.trim_end(),
-            Err(err) => return self.fail(ErrorKind::Utf8(err)),
-        };
-
-        let (lat, lon) = match line.split_once(',') {
-            Some(fields) => fields,
-            None => return self.fail(ErrorKind::NoComa),
-        };
-        let offset = lat.len();
-
-        let lat = match lat.parse::<f64>() {
+        let lat = match lhs.trim().parse::<f64>() {
             Ok(lat) => lat,
             Err(_) => {
-                return if self.row == 1 {
-                    self.line_buffer.clear();
-                    self.next()
+                if i == 0 {
+                    // optional header
+                    continue;
                 } else {
-                    self.fail(ErrorKind::Value)
+                    return Err(Error {
+                        row: inc!(i),
+                        column: 0,
+                        kind: ErrorKind::Value,
+                    });
                 }
             }
         };
-        self.column = match offset.try_into() {
-            Ok(column) => column,
-            Err(_) => return self.fail(ErrorKind::Overflow),
-        };
 
-        let lon = match lon.parse::<f64>() {
+        let lon = match rhs.trim().parse::<f64>() {
             Ok(lon) => lon,
-            Err(_) => return self.fail(ErrorKind::Value),
+            Err(_) => {
+                return Err(Error {
+                    row: inc!(i),
+                    column: inc!(lhs.len()),
+                    kind: ErrorKind::Value,
+                });
+            }
         };
 
-        self.line_buffer.clear();
-
-        Some(Ok(Point::new(lat, lon)))
+        track.push((lat, lon));
     }
+
+    Ok(track)
+}
+
+pub fn dump<I: IntoIterator<Item = (f64, f64)>>(track: I) -> Result<Vec<u8>, Error> {
+    let mut csv = String::new();
+
+    writeln!(&mut csv, "Latitude,Longitude")?;
+    for (lat, lon) in track {
+        writeln!(&mut csv, "{:.8},{:.8}", lat, lon)?;
+    }
+    Ok(csv.into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    macro_rules! csv_tests_ok {
-        ($($name:ident: $csv:literal,)*) => {
-        $(
-            #[test]
-            fn $name() {
-                let rdr = CsvReader::new($csv.as_bytes());
-                let points = rdr.map(|r| r.unwrap()).collect::<Vec<_>>();
-                let check = vec![
-                    Point::new(54.296005, -4.588777),
-                    Point::new(54.296007, -4.588776),
-                    Point::new(54.296009, -4.588765),
-                ]
-                .into_iter()
-                .collect::<Vec<_>>();
+    const CSV: &str = "Latitude,Longitude
+54.29600470,-4.58877725
+54.29600654,-4.58877590
+54.29600906,-4.58876509
+";
 
-                assert_eq!(points, check);
+    macro_rules! csv_load_ok_tests {
+            ($($name:ident: $csv:expr,)*) => {
+            $(
+                #[test]
+                fn $name() {
+                    let track = load($csv.as_bytes()).unwrap();
+                    let check = alloc::vec![
+                        (54.29600470, -4.58877725),
+                        (54.29600654, -4.58877590),
+                        (54.29600906, -4.58876509),
+                    ]
+                    .into_iter()
+                    .collect::<Vec<_>>();
+
+                    assert_eq!(track, check);
+                }
+            )*
             }
-        )*
         }
+    csv_load_ok_tests! {
+        load_with_happy: CSV,
+        load_with_headers: "Latitude,Longitude
+54.29600470,-4.58877725
+54.29600654,-4.58877590
+54.29600906,-4.58876509",
+        load_without_headers: "54.29600470,-4.58877725
+54.29600654,-4.58877590
+54.29600906,-4.58876509",
     }
-    csv_tests_ok! {
-        with_headers: "Latitude,Longitude
-54.296005,-4.588777
-54.296007,-4.588776
-54.296009,-4.588765",
-        without_headers: "54.296005,-4.588777
-54.296007,-4.588776
-54.296009,-4.588765",
-        with_trailing_new_line: "Latitude,Longitude
-54.296005,-4.588777
-54.296007,-4.588776
-54.296009,-4.588765
-",
+
+    #[test]
+    fn dump_happy() {
+        let track = [
+            (54.29600470, -4.58877725),
+            (54.29600654, -4.58877590),
+            (54.29600906, -4.58876509),
+        ];
+        let csv = dump(track).unwrap();
+        let csv = str::from_utf8(&csv).unwrap();
+        assert_eq!(csv, CSV);
     }
 }

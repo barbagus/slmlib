@@ -12,8 +12,11 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
+//! A JSON file used by <https://scoremyline.com/>. No official specification.
+
+extern crate alloc;
+use alloc::vec::Vec;
 use serde::Deserialize;
-use std::{fs::File, io::BufReader, path::Path};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct SMLPoint {
@@ -59,8 +62,6 @@ struct SMLDoc {
     attempt: SMLAttempt,
 }
 
-// type Point = (f64, f64);
-
 impl SMLAttempt {
     pub fn route(&self) -> ((f64, f64), (f64, f64)) {
         if let Some(ref start) = self.target_line_start {
@@ -85,11 +86,6 @@ impl SMLAttempt {
     }
 }
 
-pub fn load<P>(path: P) -> SMLAttempt
-where
-    P: AsRef<Path>,
-{
-    let rdr = File::open(path).unwrap();
-    let rdr = BufReader::new(rdr);
-    serde_json::from_reader::<_, SMLDoc>(rdr).unwrap().attempt
+pub fn load(buf: &[u8]) -> Result<SMLAttempt, serde_json::Error> {
+    Ok(serde_json::from_reader::<_, SMLDoc>(buf)?.attempt)
 }

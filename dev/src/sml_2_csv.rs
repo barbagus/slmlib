@@ -12,28 +12,17 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 
-//! A tool to compute and display the relative correctness of our implementation with regards to the
-//! original implementation over at [scoremyline.com](https://scoremyline.com)
-//!
-//! The expected results have been manually collected from the site and organized in so called
-//! "meta" files.
+//! A tool to convert a Score My Line (SML) file to CSV.
 
-use std::{
-    env,
-    fs::File,
-    io::{BufWriter, Write},
-    path::PathBuf,
-};
+use std::{env, fs, path::PathBuf};
 
 fn main() {
-    let input_file: PathBuf = env::args().nth(1).expect("No input file specified.").into();
-    let output_file = input_file.clone().with_extension("csv");
+    let input_path: PathBuf = env::args().nth(1).expect("no input file specified").into();
+    let output_path = input_path.clone().with_extension("csv");
 
-    let attempt = files::sml::load(input_file);
-    let wtr = File::create(output_file).expect("Open output file");
-    let mut wtr = BufWriter::new(wtr);
-    writeln!(&mut wtr, "Latitude,Longitude").expect("Write headers");
-    for point in attempt.points {
-        writeln!(&mut wtr, "{:.6},{:.6}", point.latitude, point.longitude).expect("Write record");
-    }
+    let buf = fs::read(input_path).expect("read input file");
+    let attempt = files::sml::load(&buf).expect("load SML file");
+
+    let buf = files::csv::dump(attempt.track()).expect("dump CSV file");
+    fs::write(output_path, buf).expect("write CSV file");
 }

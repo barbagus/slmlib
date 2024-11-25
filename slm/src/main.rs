@@ -14,10 +14,8 @@
 
 use anyhow::{anyhow, bail, Result};
 use color_print::cstr;
-use files::csv::CsvReader;
-use files::gpx::GpxReader;
 use slmlib::Point;
-use std::{env, fs, io, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 
 const USAGE: &str = cstr!(
     "<bold,underline>Usage:</> slm[.exe] [OPTIONS] FILE
@@ -45,16 +43,16 @@ enum Format {
     Gpx,
 }
 
-fn parse_point(value: &str) -> Result<Point> {
+fn parse_point(value: &str) -> Result<(f64, f64)> {
     let (lat, lon) = value.split_once(',').ok_or(anyhow!("No comma found."))?;
     let lat = lat.parse::<f64>()?;
     let lon = lon.parse::<f64>()?;
-    Ok(Point::new(lat, lon))
+    Ok((lat, lon))
 }
 
 fn main() -> Result<()> {
-    let mut start: Option<Point> = None;
-    let mut end: Option<Point> = None;
+    let mut start: Option<(f64, f64)> = None;
+    let mut end: Option<(f64, f64)> = None;
     let mut input_format: Option<Format> = None;
     let mut input_path: Option<PathBuf> = None;
 
@@ -142,17 +140,11 @@ fn main() -> Result<()> {
         }
     };
 
-    let rdr = io::BufReader::new(fs::File::open(input_path)?);
+    let buf = fs::read(input_path)?;
 
     let track = match input_format {
-        Format::Csv => match CsvReader::new(rdr).collect::<Result<Vec<Point>, _>>() {
-            Ok(track) => track,
-            Err(err) => return Err(err.into()),
-        },
-        Format::Gpx => match GpxReader::new(rdr).collect::<Result<Vec<Point>, _>>() {
-            Ok(track) => track,
-            Err(err) => return Err(err.into()),
-        },
+        Format::Csv => files::csv::load(&buf)?,
+        Format::Gpx => files::gpx::load(&buf)?,
     };
 
     if track.is_empty() {
@@ -162,7 +154,10 @@ fn main() -> Result<()> {
     let start = start.unwrap_or_else(|| track.first().unwrap().clone());
     let end = end.unwrap_or_else(|| track.last().unwrap().clone());
 
-    let stats = slmlib::compute_stats((start, end), track);
+    let stats = slmlib::compute_stats(
+        (Point::new(start.0, start.1), Point::new(end.0, end.1)),
+        track.into_iter().map(|(lat, lon)| Point::new(lat, lon)),
+    );
     println!(
         "Route length:             {:.1} km",
         (stats.route_length / 1000_f64)

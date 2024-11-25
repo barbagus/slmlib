@@ -16,10 +16,10 @@
 //! original implementation over at [scoremyline.com](https://scoremyline.com)
 //!
 //! The expected results have been manually collected from the site and organized in so called
-//! "meta" files.
+//! "fix" files.
 
 use slmlib::{compute_stats, Point};
-use std::fs::read_dir;
+use std::fs;
 
 fn fmt_err(err: f64) -> String {
     let s = format!("{:.2}", err);
@@ -45,7 +45,7 @@ fn fmt_err(err: f64) -> String {
 }
 
 fn main() {
-    let mut paths = read_dir("fixtures")
+    let mut paths = fs::read_dir("../fixtures")
         .unwrap()
         .map(|e| e.unwrap())
         .filter(|e| e.metadata().unwrap().is_file())
@@ -89,10 +89,13 @@ fn main() {
             .into_string()
             .unwrap();
 
-        let scores_path = sml_path.clone().with_extension("json");
+        let fix_path = sml_path.clone().with_extension("json");
 
         let (route, track) = {
-            let attempt = files::sml::load(sml_path);
+            let attempt = {
+                let buf = fs::read(sml_path).expect("read SML file");
+                files::sml::load(&buf).expect("load SML file")
+            };
             let route = {
                 let (start, end) = attempt.route();
                 let start = Point::new(start.0, start.1);
@@ -109,34 +112,36 @@ fn main() {
             )
         };
 
-        let scores_doc = files::fix::load(scores_path);
+        let fix = {
+            let buf = fs::read(fix_path).expect("read FIX file");
+            files::fix::load(&buf).expect("parse FIX file")
+        };
 
-        for score in scores_doc.scores.into_iter().filter(|s| s.ignore.is_none()) {
+        for score in fix.scores.into_iter().filter(|s| s.ignore.is_none()) {
             let stats = compute_stats(route, track.iter().cloned());
-
-            let scores = files::fix::BurdellLevel::each()
-                .map(|level| {
-                    let settings = match level {
-                        files::fix::BurdellLevel::Pro => slmlib::LVL_PRO,
-                        files::fix::BurdellLevel::Amateur => slmlib::LVL_AMATEUR,
-                        files::fix::BurdellLevel::Newbie => slmlib::LVL_NEWBIE,
-                    };
-
-                    let burdell_score = slmlib::compute_burdell_score(settings, &stats);
-                    (burdell_score, burdell_score - score.scores[&level])
-                })
-                .collect::<Vec<_>>();
+            let pro = {
+                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_PRO, &stats);
+                (burdell_score, burdell_score - score.scores.pro)
+            };
+            let amateur = {
+                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_AMATEUR, &stats);
+                (burdell_score, burdell_score - score.scores.amateur)
+            };
+            let newbie = {
+                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_NEWBIE, &stats);
+                (burdell_score, burdell_score - score.scores.newbie)
+            };
 
             println!(
                 "| {} |",
                 [
                     format!("{:18}", name),
-                    format!("{:12.2}", scores[0].0),
-                    format!("{:>12}", fmt_err(scores[0].1)),
-                    format!("{:12.2}", scores[1].0),
-                    format!("{:>12}", fmt_err(scores[1].1)),
-                    format!("{:12.2}", scores[2].0),
-                    format!("{:>12}", fmt_err(scores[2].1)),
+                    format!("{:12.2}", pro.0),
+                    format!("{:>12}", fmt_err(pro.1)),
+                    format!("{:12.2}", amateur.0),
+                    format!("{:>12}", fmt_err(amateur.1)),
+                    format!("{:12.2}", newbie.0),
+                    format!("{:>12}", fmt_err(newbie.1)),
                 ]
                 .join(" | ")
             );
