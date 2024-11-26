@@ -35,24 +35,20 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::DuplicateCoordinate(text_pos) => {
-                write!(f, "{}:{} duplicate coordinate", text_pos.row, text_pos.col)
+                write!(f, "duplicate coordinate at {}", text_pos)
             }
             Error::InvalidCoordinate(text_pos) => {
-                write!(f, "{}:{} invalid coordinate", text_pos.row, text_pos.col)
+                write!(f, "invalid coordinate at {}", text_pos)
             }
             Error::MissingCoordinate(text_pos) => {
-                write!(f, "{}:{} missing coordinate", text_pos.row, text_pos.col)
+                write!(f, "missing coordinate at {}", text_pos)
             }
             Error::Utf8(utf8_error) => utf8_error.fmt(f),
             Error::XmlForm(text_pos) => {
-                write!(f, "{}:{} malformed xml", text_pos.row, text_pos.col)
+                write!(f, "malformed xml at {}", text_pos)
             }
             Error::XmlStack(text_pos) => {
-                write!(
-                    f,
-                    "{}:{} xml stack (you found a bug !)",
-                    text_pos.row, text_pos.col
-                )
+                write!(f, "xml stack at {} (you found a bug !)", text_pos)
             }
             Error::XmlStream(error) => error.fmt(f),
         }
