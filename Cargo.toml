@@ -1,5 +1,5 @@
 [workspace]
-members = ["dev", "files", "slm"]
+members = ["dev", "files", "cli"]
 resolver = "2"
 
 [package]
@@ -15,9 +15,9 @@ repository = "https://github.com/barbagus/slmlib"
 name = "slmlib"
 path = "src/lib.rs"
 
+[dependencies]
+libm = "0.2.11"
+
 [dev-dependencies]
 approx = "0.5.1"
 files = {path = "files", features = ["sml", "fix"]}
-
-[dependencies]
-libm = "0.2.11"
