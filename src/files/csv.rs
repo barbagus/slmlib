@@ -101,7 +101,12 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
         return Ok(Vec::new());
     };
 
-    let capacity: usize = buf.iter().filter(|c| *c == &LINE_SEP).count() + 1;
+    let capacity: usize = buf
+        .iter()
+        .filter(|c| *c == &LINE_SEP)
+        .count()
+        .checked_add(1)
+        .ok_or(ERR_OVERFLOW.clone())?;
 
     let mut track: Vec<(f64, f64)> = Vec::with_capacity(capacity);
 
