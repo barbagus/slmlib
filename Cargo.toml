@@ -1,5 +1,5 @@
 [workspace]
-members = ["files", "crates/slm-cli", "crates/dev-tools"]
+members = ["crates/slm-cli", "crates/dev-tools"]
 resolver = "2"
 
 [package]
@@ -17,7 +17,17 @@ path = "src/lib.rs"
 
 [dependencies]
 libm = "0.2.11"
+serde = {version = "1.0.215", default-features = false, features = ["derive", "alloc"], optional = true}
+serde_json = {version = "1.0.133", optional = true}
+xmlparser = {version = "0.13.6", default-features = false, optional = true}
+
+[features]
+sml=["dep:serde", "dep:serde_json"]
+fix=["dep:serde", "dep:serde_json"]
+csv=[]
+gpx=["dep:xmlparser"]
 
 [dev-dependencies]
 approx = "0.5.1"
-files = {path = "files", features = ["sml", "fix"]}
+serde = {version = "1.0.215", default-features = false, features = ["derive", "alloc"]}
+serde_json = {version = "1.0.133"}
