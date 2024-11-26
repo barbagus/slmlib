@@ -18,7 +18,7 @@ use slmlib::Point;
 use std::{env, fs, path::PathBuf};
 
 const USAGE: &str = cstr!(
-    "<bold,underline>Usage:</> slm[.exe] [OPTIONS] FILE
+    "<bold,underline>Usage:</> slm-cli[.exe] [OPTIONS] FILE
 
 <bold,underline>Arguments:</>
   FILE  Input file.
