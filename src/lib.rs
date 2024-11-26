@@ -14,6 +14,7 @@
 #![no_std]
 
 mod burdell;
+pub mod files;
 mod geo;
 mod stats;
 

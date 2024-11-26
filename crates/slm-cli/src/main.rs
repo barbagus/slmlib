@@ -143,8 +143,8 @@ fn main() -> Result<()> {
     let buf = fs::read(input_path)?;
 
     let track = match input_format {
-        Format::Csv => files::csv::load(&buf)?,
-        Format::Gpx => files::gpx::load(&buf)?,
+        Format::Csv => slmlib::files::csv::load(&buf)?,
+        Format::Gpx => slmlib::files::gpx::load(&buf)?,
     };
 
     if track.is_empty() {

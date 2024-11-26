@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-slmlib = {path = "../../"}
-files = {path = "../../files", features=["sml", "fix", "csv"]}
-
+slmlib = {path = "../../", features=["sml", "fix", "csv"]}
 
 [[bin]]
 name = "compare-scores"

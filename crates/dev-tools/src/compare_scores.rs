@@ -18,7 +18,7 @@
 //! The expected results have been manually collected from the site and organized in so called
 //! "fix" files.
 
-use slmlib::{compute_stats, Point};
+use slmlib::{compute_stats, files, Point};
 use std::fs;
 
 fn fmt_err(err: f64) -> String {

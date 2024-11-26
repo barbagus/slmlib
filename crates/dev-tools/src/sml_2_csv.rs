@@ -36,7 +36,7 @@ fn main() {
     let output_path = input_path.clone().with_extension("csv");
 
     let buf = fs::read(input_path).expect("read input file");
-    let attempt = files::sml::load(&buf).expect("load SML file");
+    let attempt = slmlib::files::sml::load(&buf).expect("load SML file");
 
     let buf = dump(attempt.track()).expect("dump CSV file");
     fs::write(output_path, buf).expect("write CSV file");
