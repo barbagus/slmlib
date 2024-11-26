@@ -85,14 +85,19 @@ It is unclear to us what could explain the differences. More details from Mr. Bu
 help. Or maybe there is just a bug... somewhere :-)
 
 ## How to use it ?
+For now there is a library and a CLI tool. You need to compile them
+```
+$ cargo build --all --release
+```
 
-### The command line analyzer
-The tool takes an input file (CSV or GPX) and optionally the start and end positions and displays
+
+### The CLI tool
+The program takes an input file (CSV or GPX) and optionally the start and end positions and displays
 the different statistics about about the track.
 
 ```
-$ ./target/debug/slm.exe --help
-Usage: slm[.exe] [OPTIONS] FILE
+$ target/release/slm-cli --help
+Usage: slm-cli[.exe] [OPTIONS] FILE
 
 Arguments:
   FILE  Input file.
@@ -111,7 +116,7 @@ Values:
 ```
 
 ```
-$ ./target/debug/slm.exe fixtures/archie-iom.csv
+$ target/release/slm-cli fixtures/archie-iom.csv
 Route length:             15.0 km
 Max. deviation:           21.7 m
 Medal rank:               PLATINUM
@@ -121,7 +126,7 @@ Burdell score (NEWBIE):   99.9 %
 ```
 
 ```
-$ ./target/debug/slm.exe fixtures/schaffhausen.gpx
+$ target/debug/slm-cli fixtures/schaffhausen.gpx
 Route length:             12.7 km
 Max. deviation:           56.5 m
 Medal rank:               SILVER
