@@ -1,5 +1,5 @@
 [workspace]
-members = ["dev", "files", "cli"]
+members = ["files", "crates/slm-cli", "crates/dev-tools"]
 resolver = "2"
 
 [package]

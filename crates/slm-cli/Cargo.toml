@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "slm-cli"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,5 +10,5 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.93"
 color-print = "0.3.7"
-slmlib = {path = "../"}
-files = {path = "../files", features=["csv", "gpx"]}
+slmlib = {path = "../../"}
+files = {path = "../../files", features=["csv", "gpx"]}

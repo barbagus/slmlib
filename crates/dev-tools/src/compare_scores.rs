@@ -45,7 +45,7 @@ fn fmt_err(err: f64) -> String {
 }
 
 fn main() {
-    let mut paths = fs::read_dir("../fixtures")
+    let mut paths = fs::read_dir("../../fixtures")
         .unwrap()
         .map(|e| e.unwrap())
         .filter(|e| e.metadata().unwrap().is_file())

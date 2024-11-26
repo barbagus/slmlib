@@ -1,0 +1,17 @@
+[package]
+name = "slm-dev-tools"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slmlib = {path = "../../"}
+files = {path = "../../files", features=["sml", "fix", "csv"]}
+
+
+[[bin]]
+name = "compare-scores"
+path = "src/compare_scores.rs"
+
+[[bin]]
+name = "sml2csv"
+path = "src/sml_2_csv.rs"
