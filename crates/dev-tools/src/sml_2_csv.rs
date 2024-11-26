@@ -14,7 +14,22 @@
 
 //! A tool to convert a Score My Line (SML) file to CSV.
 
-use std::{env, fs, path::PathBuf};
+use std::{
+    env,
+    fmt::{Error, Write},
+    fs,
+    path::PathBuf,
+};
+
+pub fn dump<I: IntoIterator<Item = (f64, f64)>>(track: I) -> Result<Vec<u8>, Error> {
+    let mut csv = String::new();
+
+    writeln!(&mut csv, "Latitude,Longitude")?;
+    for (lat, lon) in track {
+        writeln!(&mut csv, "{:.8},{:.8}", lat, lon)?;
+    }
+    Ok(csv.into())
+}
 
 fn main() {
     let input_path: PathBuf = env::args().nth(1).expect("no input file specified").into();
@@ -23,6 +38,6 @@ fn main() {
     let buf = fs::read(input_path).expect("read input file");
     let attempt = files::sml::load(&buf).expect("load SML file");
 
-    let buf = files::csv::dump(attempt.track()).expect("dump CSV file");
+    let buf = dump(attempt.track()).expect("dump CSV file");
     fs::write(output_path, buf).expect("write CSV file");
 }

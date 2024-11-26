@@ -30,12 +30,8 @@
 //!
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
-use core::{
-    error,
-    fmt::{self, Write},
-    num, str, u64,
-};
+use alloc::vec::Vec;
+use core::{error, fmt, num, str, u64};
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
@@ -160,16 +156,6 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
     Ok(track)
 }
 
-pub fn dump<I: IntoIterator<Item = (f64, f64)>>(track: I) -> Result<Vec<u8>, Error> {
-    let mut csv = String::new();
-
-    writeln!(&mut csv, "Latitude,Longitude")?;
-    for (lat, lon) in track {
-        writeln!(&mut csv, "{:.8},{:.8}", lat, lon)?;
-    }
-    Ok(csv.into())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,17 +194,5 @@ mod tests {
         load_without_headers: "54.29600470,-4.58877725
 54.29600654,-4.58877590
 54.29600906,-4.58876509",
-    }
-
-    #[test]
-    fn dump_happy() {
-        let track = [
-            (54.29600470, -4.58877725),
-            (54.29600654, -4.58877590),
-            (54.29600906, -4.58876509),
-        ];
-        let csv = dump(track).unwrap();
-        let csv = str::from_utf8(&csv).unwrap();
-        assert_eq!(csv, CSV);
     }
 }
