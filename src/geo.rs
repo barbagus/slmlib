@@ -199,9 +199,9 @@ impl Point {
 
         (
             v_projection.into(),
-            if h1 < 0.0 {
+            if h1 <= 0.0 {
                 Order::Before
-            } else if h2 > 0.0 {
+            } else if h2 >= 0.0 {
                 Order::After
             } else {
                 Order::Between
