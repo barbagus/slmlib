@@ -14,7 +14,7 @@
 
 #[cfg(feature = "csv")]
 pub mod csv;
-#[cfg(feature = "fix")]
+#[cfg(any(test, feature = "fix"))]
 pub mod fix;
 #[cfg(feature = "gpx")]
 pub mod gpx;

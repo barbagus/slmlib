@@ -17,7 +17,7 @@ extern crate alloc;
 pub mod burdell;
 pub mod files;
 mod geo;
-pub mod geo_wizard;
+pub mod geowizard;
 mod slm;
 
 pub use slm::*;

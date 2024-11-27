@@ -14,7 +14,7 @@
 
 use anyhow::{anyhow, bail, Result};
 use color_print::cstr;
-use slmlib::{self, burdell, files, geo_wizard, Coordinates};
+use slmlib::{self, burdell, files, geowizard, Coordinates};
 use std::{env, fs, path::PathBuf};
 
 const USAGE: &str = cstr!(
@@ -164,16 +164,8 @@ fn main() -> Result<()> {
     );
     println!("Max. deviation:           {:.1} m", stats.max_deviation);
 
-    let medal = geo_wizard::compute_rank(&stats);
-    let medal = match medal {
-        Some(medal) => match medal {
-            geo_wizard::Rank::Platinum => "PLATINUM",
-            geo_wizard::Rank::Gold => "GOLD",
-            geo_wizard::Rank::Silver => "SILVER",
-            geo_wizard::Rank::Bronze => "BRONZE",
-        },
-        None => "-",
-    };
+    let medal = geowizard::compute_rank(&stats);
+    let medal = medal.map(|r| r.to_str()).unwrap_or("-");
     println!("Medal rank:               {}", medal);
 
     let burdell_score = burdell::compute_score(burdell::LVL_PRO, &stats);
