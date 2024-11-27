@@ -19,7 +19,7 @@ The third point implies in particular that:
   1. details and correctness of implementations cannot be verified,
   2. community discussions about these *de facto* standards are difficult to organize.
 
-*Disclaimer*: we have not been in contact with Mr. Burdell for lack of means to do so (email, social
+*Disclaimer*: we have **not** been in contact with Mr. Burdell for lack of means to do so (email, social
 media, etc.). But we would welcome the opportunity.
 
 ## Implementation
@@ -82,7 +82,8 @@ consistent with sample values, with few puzzling exceptions though:
 | schaffhausen       |         0.00 |            - |        76.31 |         0.05 |        96.04 |     **1.00** |
 
 It is unclear to us what could explain the differences. More details from Mr. Burdell would probably
-help. Or maybe there is just a bug... somewhere :-)
+help. The fact that the errors are bigger as the level (Pro, Amateur, Newbie) decreases and as such
+length of the segments increases, may indicate that our division logic is different.
 
 ## How to use it ?
 For now there is a library and a CLI tool. You need to compile them

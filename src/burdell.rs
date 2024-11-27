@@ -16,7 +16,8 @@ extern crate alloc;
 
 use crate::{Deviation, Point, Progress, Slm};
 use alloc::{vec, vec::Vec};
-use libm::{ceil, floor, log10, pow};
+use core::iter;
+use libm::{floor, log10, pow};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -54,14 +55,19 @@ pub const LVL_NEWBIE: BurdellSettings = BurdellSettings {
 /// Burdell score computation
 ///
 pub fn compute_score(config: BurdellSettings, slm: &Slm) -> f64 {
-    let steps = ceil(slm.route_length / config.step) as usize;
+    let segment_count = floor(slm.route_length / config.step) + 1.0;
 
-    let mut slots: Vec<Option<f64>> = vec![None; steps];
+    let mut segments: Vec<Option<f64>> = vec![None; segment_count as usize];
+    let mut filled_segments: Vec<usize> = Vec::with_capacity(segments.len());
 
-    let mut used_slots: Vec<usize> = Vec::with_capacity(slots.len());
+    segments.first_mut().unwrap().replace(0.0);
+    filled_segments.push(0);
 
-    for p in slm.track.iter() {
-        let Point { progress, .. } = p;
+    segments.last_mut().unwrap().replace(0.0);
+    filled_segments.push(segments.len() - 1);
+
+    for point in slm.track.iter() {
+        let Point { progress, .. } = point;
         let (made_good, deviation) = match progress {
             Progress::Standby => continue,
             Progress::EnRoute {
@@ -78,47 +84,42 @@ pub fn compute_score(config: BurdellSettings, slm: &Slm) -> f64 {
             Progress::Arrived => continue,
         };
 
-        let i = floor(made_good / config.step) as usize;
-        let slot = slots.get_mut(i).unwrap();
+        // Trivial segment division: get the best overall results
+        // (we tried "centering" the segments on the total route, it gets worse)
+        let segment_index = floor(made_good / config.step) as usize;
+        let segment = segments.get_mut(segment_index).unwrap();
 
-        match slot {
+        match segment {
             Some(max_deviation) => {
                 if deviation > *max_deviation {
-                    slot.replace(deviation);
+                    segment.replace(deviation);
                 }
             }
             None => {
-                used_slots.push(i);
-                slot.replace(deviation);
+                filled_segments.push(segment_index);
+                segment.replace(deviation);
             }
         };
     }
 
-    used_slots.sort_unstable();
+    filled_segments.sort_unstable();
 
-    for (i1, i2) in core::iter::zip(
-        used_slots.iter().cloned(),
-        used_slots.iter().skip(1).cloned(),
+    for (i1, i2) in iter::zip(
+        filled_segments.iter().cloned(),
+        filled_segments.iter().skip(1).cloned(),
     ) {
         if i2 - i1 > 1 {
-            let fill = (slots[i1].unwrap() + slots[i2].unwrap()) / 2.0;
-            for slot in slots.iter_mut().take(i2).skip(i1 + 1) {
-                slot.replace(fill);
+            let fill = (segments[i1].unwrap() + segments[i2].unwrap()) / 2.0;
+            for segment in segments.iter_mut().take(i2).skip(i1 + 1) {
+                segment.replace(fill);
             }
         }
     }
 
-    for slot in slots.iter_mut().take(*used_slots.first().unwrap()) {
-        slot.replace(0_f64);
-    }
-    for slot in slots.iter_mut().skip(*used_slots.last().unwrap() + 1) {
-        slot.replace(0_f64);
-    }
-
     let log = log10(slm.route_length);
     let mut penalities: f64 = 0.0;
-    for slot in slots {
-        penalities += 100.0 * pow(slot.unwrap() / config.coefficient, log);
+    for s in segments {
+        penalities += 100.0 * pow(s.unwrap() / config.coefficient, log);
     }
 
     f64::max(100.0 - penalities, 0.0)
