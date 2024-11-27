@@ -14,6 +14,7 @@
 
 //! A tool to convert a Score My Line (SML) file to CSV.
 
+use slmlib::Coordinates;
 use std::{
     env,
     fmt::{Error, Write},
@@ -21,12 +22,16 @@ use std::{
     path::PathBuf,
 };
 
-pub fn dump<I: IntoIterator<Item = (f64, f64)>>(track: I) -> Result<Vec<u8>, Error> {
+pub fn dump<I: IntoIterator<Item = Coordinates>>(track: I) -> Result<Vec<u8>, Error> {
     let mut csv = String::new();
 
     writeln!(&mut csv, "Latitude,Longitude")?;
-    for (lat, lon) in track {
-        writeln!(&mut csv, "{:.8},{:.8}", lat, lon)?;
+    for Coordinates {
+        latitude,
+        longitude,
+    } in track
+    {
+        writeln!(&mut csv, "{:.8},{:.8}", latitude, longitude)?;
     }
     Ok(csv.into())
 }

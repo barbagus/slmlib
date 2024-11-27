@@ -14,6 +14,7 @@
 
 extern crate alloc;
 
+use crate::Coordinates;
 use alloc::vec::Vec;
 use core::{error, f64, fmt, str};
 use xmlparser::{ElementEnd, TextPos, Token, Tokenizer};
@@ -92,21 +93,18 @@ macro_rules! set_coordinate {
     }};
 }
 
-pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
+pub fn load(buf: &[u8]) -> Result<Vec<Coordinates>, Error> {
     let buf = str::from_utf8(buf)?;
 
-    let mut track: Vec<(f64, f64)> = Vec::new();
+    let mut track: Vec<Coordinates> = Vec::new();
     let mut stack: Vec<&str> = Vec::with_capacity(10);
 
     let mut lat: Option<f64> = None;
     let mut lon: Option<f64> = None;
 
     let mut tokenizer = Tokenizer::from(buf);
-    loop {
-        let token = match tokenizer.next() {
-            None => break,
-            Some(token) => token,
-        }?;
+    while let Some(token) = tokenizer.next() {
+        let token = token?;
 
         match token {
             Token::ElementStart { local, .. } => {
@@ -138,14 +136,14 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
                 match element {
                     "trk" => break,
                     "trkpt" => {
-                        track.push((
-                            lat.take().ok_or_else(|| {
+                        track.push(Coordinates {
+                            latitude: lat.take().ok_or_else(|| {
                                 Error::MissingCoordinate(tokenizer.stream().gen_text_pos())
                             })?,
-                            lon.take().ok_or_else(|| {
+                            longitude: lon.take().ok_or_else(|| {
                                 Error::MissingCoordinate(tokenizer.stream().gen_text_pos())
                             })?,
-                        ));
+                        });
                     }
                     _ => continue,
                 }
@@ -167,9 +165,9 @@ mod tests {
             fn $name() {
                 let points = load($csv.as_bytes()).unwrap();
                 let check = alloc::vec![
-                    (47.6655080, 8.5671500),
-                    (47.6655040, 8.5671580),
-                    (47.6655010, 8.5671610),
+                    Coordinates{latitude: 47.6655080, longitude: 8.5671500},
+                    Coordinates{latitude: 47.6655040, longitude: 8.5671580},
+                    Coordinates{latitude: 47.6655010, longitude: 8.5671610},
                 ]
                 .into_iter()
                 .collect::<Vec<_>>();

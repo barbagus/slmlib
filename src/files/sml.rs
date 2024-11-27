@@ -15,6 +15,8 @@
 //! A JSON file used by <https://scoremyline.com/>. No official specification.
 
 extern crate alloc;
+
+use crate::Coordinates;
 use alloc::vec::Vec;
 use serde::Deserialize;
 
@@ -63,26 +65,41 @@ struct SMLDoc {
 }
 
 impl SMLAttempt {
-    pub fn route(&self) -> ((f64, f64), (f64, f64)) {
+    pub fn route(&self) -> (Coordinates, Coordinates) {
         if let Some(ref start) = self.target_line_start {
             let end = self.target_line_end.as_ref().unwrap();
             (
-                (start.latitude, start.longitude),
-                (end.latitude, end.longitude),
+                Coordinates {
+                    latitude: start.latitude,
+                    longitude: start.longitude,
+                },
+                Coordinates {
+                    latitude: end.latitude,
+                    longitude: end.longitude,
+                },
             )
         } else {
             assert!(self.target_line_end.is_none());
             let start = self.points.first().unwrap();
             let end = self.points.last().unwrap();
             (
-                (start.latitude, start.longitude),
-                (end.latitude, end.longitude),
+                Coordinates {
+                    latitude: start.latitude,
+                    longitude: start.longitude,
+                },
+                Coordinates {
+                    latitude: end.latitude,
+                    longitude: end.longitude,
+                },
             )
         }
     }
 
-    pub fn track(&self) -> impl Iterator<Item = (f64, f64)> + '_ {
-        self.points.iter().map(|p| (p.latitude, p.longitude))
+    pub fn track(&self) -> impl Iterator<Item = Coordinates> + '_ {
+        self.points.iter().map(|p| Coordinates {
+            latitude: p.latitude,
+            longitude: p.longitude,
+        })
     }
 }
 

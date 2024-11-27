@@ -18,7 +18,7 @@
 //! The expected results have been manually collected from the site and organized in so called
 //! "fix" files.
 
-use slmlib::{compute_stats, files, Point};
+use slmlib::{self, burdell, files};
 use std::fs;
 
 fn fmt_err(err: f64) -> String {
@@ -91,25 +91,14 @@ fn main() {
 
         let fix_path = sml_path.clone().with_extension("json");
 
-        let (route, track) = {
+        let mission = {
             let attempt = {
                 let buf = fs::read(sml_path).expect("read SML file");
                 files::sml::load(&buf).expect("load SML file")
             };
-            let route = {
-                let (start, end) = attempt.route();
-                let start = Point::new(start.0, start.1);
-                let end = Point::new(end.0, end.1);
-                (start, end)
-            };
-
-            (
-                route,
-                attempt
-                    .track()
-                    .map(|t| Point::new(t.0, t.1))
-                    .collect::<Vec<_>>(),
-            )
+            let (start, end) = attempt.route();
+            let track = attempt.track().collect::<Vec<_>>();
+            slmlib::analyze(start, end, track)
         };
 
         let fix = {
@@ -118,17 +107,16 @@ fn main() {
         };
 
         for score in fix.scores.into_iter().filter(|s| s.ignore.is_none()) {
-            let stats = compute_stats(route, track.iter().cloned());
             let pro = {
-                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_PRO, &stats);
+                let burdell_score = burdell::compute_score(burdell::LVL_PRO, &mission);
                 (burdell_score, burdell_score - score.scores.pro)
             };
             let amateur = {
-                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_AMATEUR, &stats);
+                let burdell_score = burdell::compute_score(burdell::LVL_AMATEUR, &mission);
                 (burdell_score, burdell_score - score.scores.amateur)
             };
             let newbie = {
-                let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_NEWBIE, &stats);
+                let burdell_score = burdell::compute_score(burdell::LVL_NEWBIE, &mission);
                 (burdell_score, burdell_score - score.scores.newbie)
             };
 

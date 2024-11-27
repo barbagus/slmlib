@@ -12,40 +12,88 @@
 // You should have received a copy of the GNU General Public License along with slmlib. If not, see
 // <https://www.gnu.org/licenses/>.
 #![no_std]
+extern crate alloc;
 
-mod burdell;
+pub mod burdell;
 pub mod files;
 mod geo;
-mod stats;
+pub mod geo_wizard;
+mod slm;
 
-pub use burdell::{compute_burdell_score, LVL_AMATEUR, LVL_NEWBIE, LVL_PRO};
-pub use geo::Point;
-pub use stats::{compute_stats, PointStats, TrackStats};
+pub use slm::*;
 
-/// The medal color associated with a max deviation value.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MedalRank {
-    /// Max deviation less than 25 meters.
-    Platinum,
-    /// Max deviation less than 50 meters.
-    Gold,
-    /// Max deviation less than 75 meters.
-    Silver,
-    /// Max deviation less than 100 meters.
-    Bronze,
+macro_rules! vincenty_inverse {
+    ($p1: expr, $p2: expr) => {
+        geo::vincenty_inverse($p1, $p2, 100, 1e-9)
+    };
 }
-pub fn compute_medal_rank(stats: &TrackStats) -> Option<MedalRank> {
-    let value = stats.max_deviation;
-    if value < 25.0 {
-        Some(MedalRank::Platinum)
-    } else if value < 50.0 {
-        Some(MedalRank::Gold)
-    } else if value < 75.0 {
-        Some(MedalRank::Silver)
-    } else if value < 100.0 {
-        Some(MedalRank::Bronze)
-    } else {
-        None
+
+impl From<Coordinates> for geo::Point {
+    fn from(value: Coordinates) -> Self {
+        geo::Point::new(value.latitude, value.longitude)
+    }
+}
+
+impl From<geo::Point> for Coordinates {
+    fn from(value: geo::Point) -> Self {
+        let value = value.coordinates();
+        Coordinates {
+            latitude: value.0,
+            longitude: value.1,
+        }
+    }
+}
+
+/// Analyze a straight line mission
+pub fn analyze<I>(start: Coordinates, end: Coordinates, track: I) -> Slm
+where
+    I: IntoIterator<Item = Coordinates>,
+{
+    let g_start: geo::Point = start.into();
+    let g_end: geo::Point = end.into();
+
+    let g_route = geo::Geodesic::new(g_start, g_end);
+    let route_length = vincenty_inverse!(g_start, g_end).unwrap();
+
+    let mut max_deviation = 0_f64;
+
+    let track = track
+        .into_iter()
+        .map(|coordinates| {
+            let g_point: geo::Point = coordinates.clone().into();
+            let (g_projection, order, side) = g_point.project_onto(g_route);
+
+            Point {
+                coordinates,
+                progress: match order {
+                    geo::Order::Before => Progress::Standby,
+                    geo::Order::Between => {
+                        let deviation = vincenty_inverse!(g_projection, g_point).unwrap();
+                        if deviation > max_deviation {
+                            max_deviation = deviation;
+                        }
+                        Progress::EnRoute {
+                            on_route: g_projection.into(),
+                            made_good: vincenty_inverse!(g_start, g_projection).unwrap(),
+                            deviation: match side {
+                                geo::Side::Left => Some(Deviation::Left(deviation)),
+                                geo::Side::Right => Some(Deviation::Right(deviation)),
+                                geo::Side::Center => None,
+                            },
+                        }
+                    }
+                    geo::Order::After => Progress::Arrived,
+                },
+            }
+        })
+        .collect();
+
+    Slm {
+        route_start: start,
+        route_end: end,
+        route_length,
+        max_deviation,
+        track,
     }
 }
 
@@ -56,71 +104,74 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
     use core::iter;
-    use std::{fs, path, string::String};
+    use std::{fs, path};
+
+    fn mission_test(sml_path: path::PathBuf) {
+        let them = {
+            let buf = fs::read(sml_path.clone()).expect("read SML file");
+            files::sml::load(&buf).expect("parse SML file")
+        };
+        let (start, end) = them.route();
+
+        let us = analyze(start, end, them.track());
+
+        assert_abs_diff_eq!(us.route_length, them.target_line_length, epsilon = 1e-2);
+
+        let mut them_max_deviation = 0_f64;
+
+        for (us_point, them_point) in iter::zip(us.track.into_iter(), them.points.into_iter()) {
+            let Point { progress, .. } = us_point;
+
+            let (us_projection, us_made_good, us_deviation) = match progress {
+                Progress::Standby => (start, 0.0, 0.0),
+                Progress::EnRoute {
+                    deviation,
+                    on_route,
+                    made_good,
+                } => match deviation {
+                    Some(deviation) => match deviation {
+                        Deviation::Left(deviation) => (on_route, made_good, deviation),
+                        Deviation::Right(deviation) => (on_route, made_good, deviation),
+                    },
+                    None => (on_route, made_good, 0.0),
+                },
+                Progress::Arrived => (end, us.route_length, 0.0),
+            };
+
+            assert_abs_diff_eq!(
+                us_projection.latitude,
+                them_point.control_point_latitude,
+                epsilon = 1e-6
+            );
+
+            assert_abs_diff_eq!(
+                us_projection.longitude,
+                them_point.control_point_longitude,
+                epsilon = 1e-6
+            );
+
+            assert_abs_diff_eq!(
+                us_made_good,
+                them_point.control_point_distance_to_start,
+                epsilon = 1e-2
+            );
+
+            assert_abs_diff_eq!(us_deviation, them_point.distance_to_line, epsilon = 1e-2,);
+
+            if them_point.distance_to_line > them_max_deviation {
+                them_max_deviation = them_point.distance_to_line;
+            }
+        }
+
+        assert_abs_diff_eq!(us.max_deviation, them_max_deviation, epsilon = 1e-2);
+    }
 
     macro_rules! mission_tests {
         ($($name:ident: $path:expr,)*) => {
         $(
             #[test]
             fn $name() {
-                let sml_path = path::PathBuf::from($path);
-                let buf = fs::read(sml_path.clone()).expect("read SML file");
-                let sml = files::sml::load(&buf).expect("parse SML file");
-                let route = {
-                    let (start, end) = sml.route();
-                    let start = Point::new(start.0, start.1);
-                    let end = Point::new(end.0, end.1);
-                    (start, end)
-                };
-
-                let stats = compute_stats(route, sml.track().map(|t| Point::new(t.0, t.1)));
-                let fix_path = sml_path.with_extension("json");
-                let buf = fs::read(fix_path).expect("read FIX file");
-                let scores = files::fix::load(&buf).expect("parse FIX file");
-
-                assert_abs_diff_eq!(stats.route_length, sml.target_line_length, epsilon = 1e-2);
-                assert_abs_diff_eq!(
-                    stats.route_length / 1000_f64,
-                    scores.route_length,
-                    epsilon = 1e-2
-                );
-
-                assert_eq!(
-                    match compute_medal_rank(&stats) {
-                        Some(MedalRank::Platinum) => Some(String::from("PLATINUM")),
-                        Some(MedalRank::Gold) => Some(String::from("GOLD")),
-                        Some(MedalRank::Silver) => Some(String::from("SILVER")),
-                        Some(MedalRank::Bronze) => Some(String::from("BRONZE")),
-                        None => None,
-                    },
-                    scores.scores[0].medal
-                );
-
-                let mut max_deviation = 0_f64;
-
-                for (point_stats, sml_point) in iter::zip(stats.points.iter(), sml.points.iter()) {
-                    assert_abs_diff_eq!(
-                        point_stats.deviation,
-                        sml_point.distance_to_line,
-                        epsilon = 1e-2,
-                    );
-                    assert_abs_diff_eq!(
-                        point_stats.made_good,
-                        sml_point.control_point_distance_to_start,
-                        epsilon = 1e-2
-                    );
-
-                    if sml_point.distance_to_line > max_deviation {
-                        max_deviation = sml_point.distance_to_line;
-                    }
-                }
-
-                assert_abs_diff_eq!(stats.max_deviation, max_deviation, epsilon = 1e-2);
-                assert_abs_diff_eq!(
-                    stats.max_deviation,
-                    scores.scores[0].max_deviation,
-                    epsilon = 1e-1
-                );
+                mission_test(path::PathBuf::from($path))
             }
         )*
         }

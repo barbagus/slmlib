@@ -14,7 +14,7 @@
 
 use anyhow::{anyhow, bail, Result};
 use color_print::cstr;
-use slmlib::Point;
+use slmlib::{self, burdell, files, geo_wizard, Coordinates};
 use std::{env, fs, path::PathBuf};
 
 const USAGE: &str = cstr!(
@@ -43,16 +43,19 @@ enum Format {
     Gpx,
 }
 
-fn parse_point(value: &str) -> Result<(f64, f64)> {
+fn parse_point(value: &str) -> Result<Coordinates> {
     let (lat, lon) = value.split_once(',').ok_or(anyhow!("No comma found."))?;
     let lat = lat.parse::<f64>()?;
     let lon = lon.parse::<f64>()?;
-    Ok((lat, lon))
+    Ok(Coordinates {
+        latitude: lat,
+        longitude: lon,
+    })
 }
 
 fn main() -> Result<()> {
-    let mut start: Option<(f64, f64)> = None;
-    let mut end: Option<(f64, f64)> = None;
+    let mut start: Option<Coordinates> = None;
+    let mut end: Option<Coordinates> = None;
     let mut input_format: Option<Format> = None;
     let mut input_path: Option<PathBuf> = None;
 
@@ -143,8 +146,8 @@ fn main() -> Result<()> {
     let buf = fs::read(input_path)?;
 
     let track = match input_format {
-        Format::Csv => slmlib::files::csv::load(&buf)?,
-        Format::Gpx => slmlib::files::gpx::load(&buf)?,
+        Format::Csv => files::csv::load(&buf)?,
+        Format::Gpx => files::gpx::load(&buf)?,
     };
 
     if track.is_empty() {
@@ -154,33 +157,30 @@ fn main() -> Result<()> {
     let start = start.unwrap_or_else(|| track.first().unwrap().clone());
     let end = end.unwrap_or_else(|| track.last().unwrap().clone());
 
-    let stats = slmlib::compute_stats(
-        (Point::new(start.0, start.1), Point::new(end.0, end.1)),
-        track.into_iter().map(|(lat, lon)| Point::new(lat, lon)),
-    );
+    let stats = slmlib::analyze(start, end, track);
     println!(
         "Route length:             {:.1} km",
         (stats.route_length / 1000_f64)
     );
     println!("Max. deviation:           {:.1} m", stats.max_deviation);
 
-    let medal = slmlib::compute_medal_rank(&stats);
+    let medal = geo_wizard::compute_rank(&stats);
     let medal = match medal {
         Some(medal) => match medal {
-            slmlib::MedalRank::Platinum => "PLATINUM",
-            slmlib::MedalRank::Gold => "GOLD",
-            slmlib::MedalRank::Silver => "SILVER",
-            slmlib::MedalRank::Bronze => "BRONZE",
+            geo_wizard::Rank::Platinum => "PLATINUM",
+            geo_wizard::Rank::Gold => "GOLD",
+            geo_wizard::Rank::Silver => "SILVER",
+            geo_wizard::Rank::Bronze => "BRONZE",
         },
         None => "-",
     };
     println!("Medal rank:               {}", medal);
 
-    let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_PRO, &stats);
+    let burdell_score = burdell::compute_score(burdell::LVL_PRO, &stats);
     println!("Burdell score (PRO):      {:.1} %", burdell_score);
-    let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_AMATEUR, &stats);
+    let burdell_score = burdell::compute_score(burdell::LVL_AMATEUR, &stats);
     println!("Burdell score (AMATEUR):  {:.1} %", burdell_score);
-    let burdell_score = slmlib::compute_burdell_score(slmlib::LVL_NEWBIE, &stats);
+    let burdell_score = burdell::compute_score(burdell::LVL_NEWBIE, &stats);
     println!("Burdell score (NEWBIE):   {:.1} %", burdell_score);
 
     Ok(())

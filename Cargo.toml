@@ -26,6 +26,8 @@ sml=["dep:serde", "dep:serde_json"]
 fix=["dep:serde", "dep:serde_json"]
 csv=[]
 gpx=["dep:xmlparser"]
+serde=["dep:serde"]
+default = ["serde"]
 
 [dev-dependencies]
 approx = "0.5.1"

@@ -30,6 +30,7 @@
 //!
 extern crate alloc;
 
+use crate::Coordinates;
 use alloc::vec::Vec;
 use core::{error, fmt, num, str, u64};
 
@@ -90,7 +91,7 @@ macro_rules! inc {
     }};
 }
 
-pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
+pub fn load(buf: &[u8]) -> Result<Vec<Coordinates>, Error> {
     let buf = if let Some(b) = buf.last() {
         if b == &LINE_SEP {
             &buf[..(buf.len() - 1)]
@@ -108,7 +109,7 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
         .checked_add(1)
         .ok_or(ERR_OVERFLOW.clone())?;
 
-    let mut track: Vec<(f64, f64)> = Vec::with_capacity(capacity);
+    let mut track: Vec<Coordinates> = Vec::with_capacity(capacity);
 
     for (i, line) in buf.split(|c| c == &LINE_SEP).enumerate() {
         let line = match str::from_utf8(line) {
@@ -128,7 +129,7 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
             kind: ErrorKind::Syntax,
         })?;
 
-        let lat = match lhs.trim().parse::<f64>() {
+        let latitude = match lhs.trim().parse::<f64>() {
             Ok(lat) => lat,
             Err(_) => {
                 if i == 0 {
@@ -144,7 +145,7 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
             }
         };
 
-        let lon = match rhs.trim().parse::<f64>() {
+        let longitude = match rhs.trim().parse::<f64>() {
             Ok(lon) => lon,
             Err(_) => {
                 return Err(Error {
@@ -155,7 +156,10 @@ pub fn load(buf: &[u8]) -> Result<Vec<(f64, f64)>, Error> {
             }
         };
 
-        track.push((lat, lon));
+        track.push(Coordinates {
+            latitude,
+            longitude,
+        });
     }
 
     Ok(track)
@@ -178,9 +182,9 @@ mod tests {
                 fn $name() {
                     let track = load($csv.as_bytes()).unwrap();
                     let check = alloc::vec![
-                        (54.29600470, -4.58877725),
-                        (54.29600654, -4.58877590),
-                        (54.29600906, -4.58876509),
+                        Coordinates{latitude: 54.29600470, longitude: -4.58877725},
+                        Coordinates{latitude: 54.29600654, longitude:-4.58877590},
+                        Coordinates{latitude: 54.29600906, longitude:-4.58876509},
                     ]
                     .into_iter()
                     .collect::<Vec<_>>();

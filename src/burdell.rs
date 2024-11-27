@@ -14,14 +14,17 @@
 
 extern crate alloc;
 
-use crate::stats::TrackStats;
+use crate::{Deviation, Point, Progress, Slm};
 use alloc::{vec, vec::Vec};
 use libm::{ceil, floor, log10, pow};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 ///
 /// A Burdell score penalty setting.
 ///
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BurdellSettings {
     /// Distance in meters over which each penalty term is computed (small is more severe).
     step: f64,
@@ -50,26 +53,43 @@ pub const LVL_NEWBIE: BurdellSettings = BurdellSettings {
 ///
 /// Burdell score computation
 ///
-pub fn compute_burdell_score(config: BurdellSettings, stats: &TrackStats) -> f64 {
-    let steps = ceil(stats.route_length / config.step) as usize;
+pub fn compute_score(config: BurdellSettings, slm: &Slm) -> f64 {
+    let steps = ceil(slm.route_length / config.step) as usize;
 
     let mut slots: Vec<Option<f64>> = vec![None; steps];
 
     let mut used_slots: Vec<usize> = Vec::with_capacity(slots.len());
 
-    for p in stats.points.iter() {
-        let i = floor(p.made_good / config.step) as usize;
+    for p in slm.track.iter() {
+        let Point { progress, .. } = p;
+        let (made_good, deviation) = match progress {
+            Progress::Standby => continue,
+            Progress::EnRoute {
+                deviation,
+                made_good,
+                ..
+            } => match deviation {
+                Some(deviation) => match deviation {
+                    Deviation::Left(deviation) => (*made_good, *deviation),
+                    Deviation::Right(deviation) => (*made_good, *deviation),
+                },
+                None => (*made_good, 0.0),
+            },
+            Progress::Arrived => continue,
+        };
+
+        let i = floor(made_good / config.step) as usize;
         let slot = slots.get_mut(i).unwrap();
 
         match slot {
             Some(max_deviation) => {
-                if p.deviation > *max_deviation {
-                    slot.replace(p.deviation);
+                if deviation > *max_deviation {
+                    slot.replace(deviation);
                 }
             }
             None => {
                 used_slots.push(i);
-                slot.replace(p.deviation);
+                slot.replace(deviation);
             }
         };
     }
@@ -95,7 +115,7 @@ pub fn compute_burdell_score(config: BurdellSettings, stats: &TrackStats) -> f64
         slot.replace(0_f64);
     }
 
-    let log = log10(stats.route_length);
+    let log = log10(slm.route_length);
     let mut penalities: f64 = 0.0;
     for slot in slots {
         penalities += 100.0 * pow(slot.unwrap() / config.coefficient, log);
