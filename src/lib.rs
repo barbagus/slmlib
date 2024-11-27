@@ -106,9 +106,12 @@ mod tests {
     use core::iter;
     use std::{fs, path};
 
-    fn mission_test(sml_path: path::PathBuf) {
+    fn mission_test(name: &str) {
+        let base = path::Path::new("fixtures");
+
         let them = {
-            let buf = fs::read(sml_path.clone()).expect("read SML file");
+            let path = base.join(name).with_extension("sml");
+            let buf = fs::read(path).expect("read SML file");
             files::sml::load(&buf).expect("parse SML file")
         };
         let (start, end) = them.route();
@@ -167,32 +170,32 @@ mod tests {
     }
 
     macro_rules! mission_tests {
-        ($($name:ident: $path:expr,)*) => {
+        ($($f:ident: $n:expr,)*) => {
         $(
             #[test]
-            fn $name() {
-                mission_test(path::PathBuf::from($path))
+            fn $f() {
+                mission_test($n)
             }
         )*
         }
     }
     mission_tests! {
-        mission_archie_iom: "fixtures/archie-iom.sml",
-        mission_archie_scotland: "fixtures/archie-scotland.sml",
-        mission_archie_wales_run: "fixtures/archie-wales-run.sml",
-        mission_archie_wales_walk: "fixtures/archie-wales-walk.sml",
-        mission_geowizard_iom: "fixtures/geowizard-iom.sml",
-        mission_geowizard_norway: "fixtures/geowizard-norway.sml",
-        mission_geowizard_scotland: "fixtures/geowizard-scotland.sml",
-        mission_geowizard_wales1a: "fixtures/geowizard-wales1a.sml",
-        mission_geowizard_wales1b: "fixtures/geowizard-wales1b.sml",
-        mission_geowizard_wales2: "fixtures/geowizard-wales2.sml",
-        mission_geowizard_wales3: "fixtures/geowizard-wales3.sml",
-        mission_geowizard_wales4: "fixtures/geowizard-wales4.sml",
-        mission_hiiumaa: "fixtures/hiiumaa.sml",
-        mission_muhu: "fixtures/muhu.sml",
-        mission_new_forest: "fixtures/new-forest.sml",
-        mission_saaremaa: "fixtures/saaremaa.sml",
-        mission_schaffhausen: "fixtures/schaffhausen.sml",
+        mission_archie_iom: "archie-iom",
+        mission_archie_scotland: "archie-scotland",
+        mission_archie_wales_run: "archie-wales-run",
+        mission_archie_wales_walk: "archie-wales-walk",
+        mission_geowizard_iom: "geowizard-iom",
+        mission_geowizard_norway: "geowizard-norway",
+        mission_geowizard_scotland: "geowizard-scotland",
+        mission_geowizard_wales1a: "geowizard-wales1a",
+        mission_geowizard_wales1b: "geowizard-wales1b",
+        mission_geowizard_wales2: "geowizard-wales2",
+        mission_geowizard_wales3: "geowizard-wales3",
+        mission_geowizard_wales4: "geowizard-wales4",
+        mission_hiiumaa: "hiiumaa",
+        mission_muhu: "muhu",
+        mission_new_forest: "new-forest",
+        mission_saaremaa: "saaremaa",
+        mission_schaffhausen: "schaffhausen",
     }
 }
